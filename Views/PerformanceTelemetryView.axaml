@@ -1,0 +1,1074 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:FH6Telemetry.ViewModels"
+             xmlns:controls="using:FH6Telemetry.Views.Controls"
+             xmlns:telemetry="using:FH6Telemetry"
+             xmlns:loc="using:FH6Telemetry.Views"
+             xmlns:converters="using:Avalonia.Data.Converters"
+             FontFamily="{loc:LocFont}"
+             x:Class="FH6Telemetry.Views.PerformanceTelemetryView"
+             x:DataType="vm:PerformanceTelemetryViewModel">
+    <UserControl.Styles>
+        <Style Selector="TabControl.telemetry-tabs TabItem">
+            <Setter Property="Padding" Value="5,8" />
+        </Style>
+    </UserControl.Styles>
+    <UserControl.Resources>
+        <DataTemplate x:Key="ShortcutButtonLabel" x:DataType="vm:ShiftShortcutChoice">
+            <TextBlock Text="{Binding Label}" />
+        </DataTemplate>
+        <DataTemplate x:Key="DriveAssistOption" x:DataType="vm:DriveAssistOption">
+            <StackPanel Margin="0,0,0,6">
+                <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" IsEnabled="{Binding IsAvailable}" AutomationProperties.Name="{Binding Label}"
+                          AutomationProperties.HelpText="{Binding Description}">
+                    <TextBlock Text="{Binding Label}" TextWrapping="Wrap" />
+                </CheckBox>
+                <TextBlock Text="{Binding Description}" Classes="hint" TextWrapping="Wrap" Margin="27,0,0,0" />
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+    <Grid RowDefinitions="Auto,*" Margin="20,14,20,14">
+        <!-- 采集控制条 -->
+        <Border Grid.Row="0" Classes="hero-card" Margin="0,0,0,10">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button Content="{loc:Tr BtnStart}" Classes="primary" Command="{Binding StartCommand}" IsEnabled="{Binding !IsListening}" />
+                    <Button Content="{loc:Tr BtnStop}" Classes="ghost" Command="{Binding StopCommand}" IsEnabled="{Binding IsListening}" />
+                    <Button Content="{loc:Tr BtnReset}" Classes="ghost" Command="{Binding ResetCommand}" />
+                    <Button x:Name="HudToggleButton" Content="{loc:Tr BtnShowHud}" Classes="ghost" Click="OnToggleHud" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding CarText}" Classes="h3" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding CarDetailText}" Classes="dim" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding CarSourceText}" Classes="hint" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding StatusText}" Classes="subtle" TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center" HorizontalAlignment="Right">
+                    <ComboBox x:Name="LanguagePicker" ItemsSource="{Binding LanguageOptions}" SelectedIndex="{Binding SelectedLanguageIndex, Mode=TwoWay}"
+                              HorizontalAlignment="Right" MinWidth="108" Padding="8,3" Margin="0,0,0,2" FontSize="11.5"
+                              AutomationProperties.Name="{loc:Tr AutoLanguage}" ToolTip.Tip="{loc:Tr TipLanguage}" />
+                    <TextBlock Text="{Binding ConnectionStateText}" Classes="h3" HorizontalAlignment="Right" />
+                    <TextBlock Text="{Binding InputStateText}" Classes="dim" HorizontalAlignment="Right" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <TabControl x:Name="TelemetryTabs" Grid.Row="1" Classes="telemetry-tabs" SelectedIndex="{Binding SelectedTab, Mode=TwoWay}">
+            <TabItem Header="{loc:Tr TabAutoShift}">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <Border Classes="card">
+                        <StackPanel Spacing="8">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                <StackPanel Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding AutoShiftStatusText}" Classes="h3" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding AutoShiftDetailText}" Classes="subtle" TextWrapping="Wrap"
+                                               IsVisible="{Binding AutoShiftDetailText, Converter={x:Static converters:StringConverters.IsNotNullOrEmpty}}" />
+                                    <Button Content="{loc:Tr VpCheckHeader}" Classes="ghost-sm" HorizontalAlignment="Left"
+                                            Command="{Binding NavigateToTabCommand}" CommandParameter="{x:Static vm:TelemetryTab.VirtualControllerSetup}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <Button Content="{loc:Tr BtnEnableAutoShift}" Classes="primary" Command="{Binding EnableAutoShiftCommand}"
+                                            IsEnabled="{Binding CanEditAutoShift}" IsVisible="{Binding !IsAutoShiftRelayPaused}" />
+                                    <Button Content="{loc:Tr BtnResumeAutoShift}" Classes="primary" Command="{Binding EnableAutoShiftCommand}"
+                                            IsVisible="{Binding IsAutoShiftRelayPaused}" />
+                                    <Button Content="{loc:Tr BtnDisableAutoShift}" Classes="ghost" Command="{Binding DisableAutoShiftCommand}" IsEnabled="{Binding IsAutoShiftEnabled}" />
+                                    <Button Content="{loc:Tr BtnDisconnectRelay}" Classes="ghost" Command="{Binding DisconnectGamepadRelayCommand}"
+                                            IsVisible="{Binding IsGamepadForwarding}" />
+                                </StackPanel>
+                            </Grid>
+                            <Expander x:Name="BeginnerShiftGuide" Header="{loc:Tr GuideExpander}" HorizontalAlignment="Stretch">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="{loc:Tr GuideStep1Title}" FontWeight="SemiBold" />
+                                    <TextBlock Classes="subtle" TextWrapping="Wrap" Text="{loc:Tr GuideStep1Body}" />
+                                    <TextBlock Text="{loc:Tr GuideStep2Title}" FontWeight="SemiBold" />
+                                    <TextBlock Classes="subtle" TextWrapping="Wrap" Text="{loc:Tr GuideStep2Body}" />
+                                    <Button x:Name="OpenVirtualControllerSetup" Content="{loc:Tr BtnViewVirtualPad}" Classes="ghost-sm" HorizontalAlignment="Left"
+                                            Command="{Binding NavigateToTabCommand}" CommandParameter="{x:Static vm:TelemetryTab.VirtualControllerSetup}" />
+                                    <TextBlock Text="{loc:Tr GuideStep3Title}" FontWeight="SemiBold" />
+                                    <TextBlock Classes="subtle" TextWrapping="Wrap" Text="{loc:Tr GuideStep3Body}" />
+                                    <TextBlock Text="{loc:Tr GuideStep4Title}" FontWeight="SemiBold" />
+                                    <TextBlock Classes="subtle" TextWrapping="Wrap" Text="{loc:Tr GuideStep4Body}" />
+                                    <TextBlock Text="{loc:Tr GuideStep5Title}" FontWeight="SemiBold" />
+                                    <TextBlock Classes="subtle" TextWrapping="Wrap" Text="{loc:Tr GuideStep5Body}" />
+                                </StackPanel>
+                            </Expander>
+                            <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto,Auto"
+                                  ColumnSpacing="12" RowSpacing="5" IsEnabled="{Binding CanEditAutoShift}">
+                                <TextBlock Grid.Row="0" Text="{loc:Tr LabelOutputMode}" Classes="subtle" VerticalAlignment="Center" />
+                                <ComboBox x:Name="ShiftOutputPicker" Grid.Row="0" Grid.Column="1" SelectedIndex="{Binding AutoShiftModeIndex, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch" AutomationProperties.Name="{loc:Tr AutoOutputMode}">
+                                    <ComboBoxItem Content="{loc:Tr OutputModeRelay}" ToolTip.Tip="{loc:Tr TipOutputModeRelay}" />
+                                    <ComboBoxItem Content="{loc:Tr OutputModeKeyboard}" ToolTip.Tip="{loc:Tr TipOutputModeKeyboard}" />
+                                </ComboBox>
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="{loc:Tr LabelPressDuration}" Classes="subtle" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding AutoShiftPressDuration}" AutomationProperties.Name="{loc:Tr AutoPressDuration}"
+                                         ToolTip.Tip="{loc:Tr TipPressDuration}" />
+                                <TextBlock Grid.Row="1" Text="{loc:Tr LabelMaxGear}" Classes="subtle" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding AutoShiftMaximumGear}" PlaceholderText="{loc:Tr PhAutoDetect}" AutomationProperties.Name="{loc:Tr AutoMaxGear}"
+                                         ToolTip.Tip="{loc:Tr TipMaxGear}" />
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="{loc:Tr LabelShiftLatency}" Classes="subtle" VerticalAlignment="Center" />
+                                <TextBox x:Name="ShiftLatencyInput" Grid.Row="1" Grid.Column="3" Text="{Binding AutoShiftLatency}" PlaceholderText="{loc:Tr PhAutoEstimate}"
+                                         AutomationProperties.Name="{loc:Tr AutoShiftLatency}" ToolTip.Tip="{loc:Tr TipShiftLatency}" />
+                            </Grid>
+                            <StackPanel Spacing="2">
+                                <TextBlock Classes="hint" TextWrapping="Wrap" Text="{loc:Tr HintPressDuration}" />
+                                <TextBlock Classes="hint" TextWrapping="Wrap" Text="{loc:Tr HintShiftLatency}" />
+                            </StackPanel>
+                            <TextBlock Classes="hint" TextWrapping="Wrap" Text="{Binding AutoShiftModeHelp}" />
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12" IsEnabled="{Binding !IsConnectingAutoShift}">
+                                <TextBlock Text="{loc:Tr LabelShiftStrategy}" Classes="subtle" VerticalAlignment="Center" />
+                                <ComboBox x:Name="ShiftStrategyPicker" Grid.Column="1" SelectedIndex="{Binding AutoShiftAlgorithmIndex, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch" AutomationProperties.Name="{loc:Tr AutoShiftStrategy}">
+                                    <ComboBoxItem Content="{loc:Tr Strategy1}" />
+                                    <ComboBoxItem Content="{loc:Tr Strategy2}" />
+                                    <ComboBoxItem Content="{loc:Tr Strategy3}" />
+                                    <ComboBoxItem Content="{loc:Tr Strategy4}" />
+                                    <ComboBoxItem Content="{loc:Tr Strategy5}" />
+                                </ComboBox>
+                            </Grid>
+                            <TextBlock x:Name="ShiftStrategyHelp" Text="{Binding AutoShiftStrategyHelp}" Classes="hint" TextWrapping="Wrap" />
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12" IsVisible="{Binding IsVirtualTcuStrategy}"
+                                  IsEnabled="{Binding !IsConnectingAutoShift}">
+                                <TextBlock Text="{loc:Tr LabelDrivingMode}" Classes="subtle" VerticalAlignment="Center" />
+                                <ComboBox x:Name="VirtualTcuModePicker" Grid.Column="1" SelectedIndex="{Binding AutoShiftVirtualTcuModeIndex, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch" AutomationProperties.Name="{loc:Tr AutoDrivingMode}">
+                                    <ComboBoxItem Content="{loc:Tr DriveModeComfort}" />
+                                    <ComboBoxItem Content="{loc:Tr DriveModeRace}" />
+                                    <ComboBoxItem Content="{loc:Tr DriveModeDrift}" />
+                                    <ComboBoxItem Content="{loc:Tr DriveModeOffRoad}" />
+                                </ComboBox>
+                            </Grid>
+                            <TextBlock x:Name="ShiftDrivingModeHelp" Text="{Binding VirtualTcuModeHelp}" Classes="hint" TextWrapping="Wrap"
+                                       IsVisible="{Binding IsVirtualTcuStrategy}" />
+                            <WrapPanel IsEnabled="{Binding !IsConnectingAutoShift}">
+                                <CheckBox x:Name="AutomaticClutchToggle" Content="{loc:Tr ChkAutoClutch}" IsChecked="{Binding AutoShiftAutomaticClutch, Mode=TwoWay}"
+                                          IsEnabled="{Binding !AutoShiftAutoDetectRaceTransmission}" Margin="0,0,14,0"
+                                          ToolTip.Tip="{loc:Tr TipAutoClutch}" />
+                                <CheckBox x:Name="AutoDetectRaceTransmissionToggle" Content="{loc:Tr ChkAutoDetectTrans}" IsChecked="{Binding AutoShiftAutoDetectRaceTransmission, Mode=TwoWay}" Margin="0,0,14,0"
+                                          ToolTip.Tip="{loc:Tr TipAutoDetectTrans}" />
+                                <CheckBox Content="{loc:Tr ChkLaunchProtect}" IsChecked="{Binding AutoShiftProtectLaunch, Mode=TwoWay}" Margin="0,0,14,0"
+                                          ToolTip.Tip="{loc:Tr TipLaunchProtect}" />
+                                <CheckBox x:Name="AirborneProtectionToggle" Content="{loc:Tr ChkAirborneProtect}" IsChecked="{Binding AutoShiftProtectAirborne, Mode=TwoWay}" Margin="0,0,14,0"
+                                          ToolTip.Tip="{loc:Tr TipAirborneProtect}" />
+                                <CheckBox x:Name="StrictSpeedMatchingToggle" Content="{loc:Tr ChkStrictMatch}"
+                                          IsChecked="{Binding AutoShiftStrictSpeedMatching, Mode=TwoWay}"
+                                          ToolTip.Tip="{loc:Tr TipStrictMatch}" />
+                            </WrapPanel>
+                            <Button Content="{loc:Tr TabShortcuts}" Classes="ghost-sm" HorizontalAlignment="Left" Command="{Binding NavigateToTabCommand}"
+                                    CommandParameter="{x:Static vm:TelemetryTab.Shortcuts}" />
+                            <Grid IsVisible="{Binding IsKeyboardShiftMode}" IsEnabled="{Binding CanEditAutoShift}"
+                                  ColumnDefinitions="Auto,*,Auto,*,Auto,*,Auto,*" ColumnSpacing="8">
+                                <TextBlock Text="{loc:Tr KbUp}" Classes="subtle" VerticalAlignment="Center" />
+                                <TextBox Grid.Column="1" Text="{Binding AutoShiftKeyboardUp}" AutomationProperties.Name="{loc:Tr AutoKbUp}"
+                                         ToolTip.Tip="{loc:Tr TipKbUp}" />
+                                <TextBlock Grid.Column="2" Text="{loc:Tr KbDown}" Classes="subtle" VerticalAlignment="Center" />
+                                <TextBox Grid.Column="3" Text="{Binding AutoShiftKeyboardDown}" AutomationProperties.Name="{loc:Tr AutoKbDown}"
+                                         ToolTip.Tip="{loc:Tr TipKbDown}" />
+                                <TextBlock Grid.Column="4" Text="{loc:Tr KbClutch}" Classes="subtle" VerticalAlignment="Center" />
+                                <TextBox Grid.Column="5" Text="{Binding AutoShiftKeyboardClutch}" AutomationProperties.Name="{loc:Tr AutoKbClutch}"
+                                         ToolTip.Tip="{loc:Tr TipKbClutch}" />
+                                <TextBlock Grid.Column="6" Text="{loc:Tr KbBlip}" Classes="subtle" VerticalAlignment="Center" />
+                                <TextBox Grid.Column="7" Text="{Binding AutoShiftKeyboardThrottle}" AutomationProperties.Name="{loc:Tr AutoKbBlip}"
+                                         ToolTip.Tip="{loc:Tr TipKbBlip}" />
+                            </Grid>
+                            <TextBox IsVisible="{Binding ShowAutoShiftRoutingPath}" IsReadOnly="True" Text="{Binding AutoShiftRoutingPath, Mode=OneWay}"
+                                     AutomationProperties.Name="{loc:Tr AutoHidHidePath}" />
+                            <TextBlock Text="{Binding AutoShiftSettingsError}" Classes="subtle" TextWrapping="Wrap"
+                                       IsVisible="{Binding AutoShiftSettingsError, Converter={x:Static converters:StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
+                    </Border>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="{loc:Tr TabDriveAssist}">
+                <ScrollViewer x:Name="DriveAssistPage" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Spacing="10">
+                        <Border Classes="card">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{Binding DriveAssistStatus}" Classes="h3" TextWrapping="Wrap" />
+                                <TextBlock Text="{loc:Tr EcuExperimentalNotice}" Foreground="{DynamicResource AccentBrush}"
+                                           FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="6">
+                                    <Button Content="{loc:Tr EcuArm}" Classes="primary" Command="{Binding ArmDriveAssistCommand}" IsEnabled="{Binding CanConnectDriveAssist}" />
+                                    <Button Content="{loc:Tr EcuDisarm}" Classes="ghost" Command="{Binding DisarmDriveAssistCommand}" IsEnabled="{Binding IsDriveAssistArmed}" />
+                                    <Button Content="{loc:Tr EcuEmergency}" Classes="ghost" Command="{Binding EmergencyDriveAssistCommand}" />
+                                    <Button Content="{loc:Tr EcuDriftExit}" Classes="ghost" Command="{Binding ExitAssistDriftCommand}" IsEnabled="{Binding IsDriveAssistArmed}" />
+                                    <Button Content="{loc:Tr TabShortcuts}" Classes="ghost" Command="{Binding NavigateToTabCommand}"
+                                            CommandParameter="{x:Static vm:TelemetryTab.Shortcuts}" />
+                                    <Button Content="{loc:Tr BtnDisconnectRelay}" Classes="ghost" Command="{Binding DisconnectGamepadRelayCommand}" IsVisible="{Binding IsGamepadForwarding}" />
+                                    <Button Content="{loc:Tr TabVirtualPad}" Classes="ghost" Command="{Binding NavigateToTabCommand}"
+                                            CommandParameter="{x:Static vm:TelemetryTab.VirtualControllerSetup}" />
+                                </WrapPanel>
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="12" LineSpacing="6">
+                                    <ComboBox x:Name="AssistAuthority" SelectedIndex="{Binding DriveAssistAuthorityIndex, Mode=TwoWay}"
+                                              MinWidth="155" AutomationProperties.Name="{loc:Tr EcuControlMode}">
+                                        <ComboBoxItem Content="{loc:Tr EcuManualMode}" />
+                                        <ComboBoxItem Content="{loc:Tr EcuAssistedMode}" />
+                                        <ComboBoxItem Content="{loc:Tr EcuAutomaticMode}" />
+                                    </ComboBox>
+                                    <CheckBox Content="{loc:Tr EcuShadowMode}" IsChecked="{Binding DriveAssistShadow, Mode=TwoWay}" />
+                                    <CheckBox Content="{loc:Tr EcuFairMode}" IsChecked="{Binding DriveAssistFairPlay, Mode=TwoWay}" />
+                                    <CheckBox Content="{loc:Tr EcuOfflineConfirm}" IsChecked="{Binding AssistOfflineConfirmed, Mode=TwoWay}" />
+                                </WrapPanel>
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="12" LineSpacing="6">
+                                    <CheckBox x:Name="UseGameAbs" Content="{loc:Tr EcuUseGameAbs}"
+                                              IsChecked="{Binding DriveAssistUseGameAbs, Mode=TwoWay}" />
+                                    <CheckBox x:Name="UseGameTractionControl" Content="{loc:Tr EcuUseGameTcs}"
+                                              IsChecked="{Binding DriveAssistUseGameTractionControl, Mode=TwoWay}" />
+                                </WrapPanel>
+                                <TextBlock Text="{loc:Tr EcuGameAssistHelp}" Classes="hint" TextWrapping="Wrap" />
+                                <TextBlock Text="{loc:Tr EcuScopeHelp}" Classes="hint" TextWrapping="Wrap" />
+                                <TextBlock Text="{loc:Tr EcuHelp}" Classes="hint" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding DriveAssistError}" Classes="subtle" TextWrapping="Wrap"
+                                           IsVisible="{Binding DriveAssistError, Converter={x:Static converters:StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{loc:Tr EcuPresets}" Classes="section-header" />
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="6">
+                                    <ComboBox x:Name="DriveAssistPresetPicker" ItemsSource="{Binding DriveAssistPresets}"
+                                              SelectedItem="{Binding SelectedDriveAssistPreset, Mode=TwoWay}" MinWidth="170"
+                                              AutomationProperties.Name="{loc:Tr EcuPresets}">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:DriveAssistPreset"><TextBlock Text="{Binding Label}" /></DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <Button x:Name="ApplyDriveAssistPresetButton" Content="{loc:Tr EcuApplyPreset}" Classes="ghost"
+                                            Command="{Binding ApplyDriveAssistPresetCommand}" IsEnabled="{Binding CanApplyDriveAssistPreset}" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="DriveAssistPresetStatusText" Text="{Binding DriveAssistPresetStatus}" Classes="subtle" VerticalAlignment="Center" />
+                                </WrapPanel>
+                                <TextBlock Text="{Binding SelectedDriveAssistPreset.Description}" Classes="dim" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding SelectedDriveAssistPreset.Contents}" Classes="hint" TextWrapping="Wrap"
+                                           IsVisible="{Binding SelectedDriveAssistPreset.Contents, Converter={x:Static converters:StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+                        </Border>
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="10" RowDefinitions="Auto,Auto" RowSpacing="10">
+                            <Border Grid.Row="0" Grid.Column="0" Classes="card">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="{loc:Tr EcuSteeringGroup}" Classes="section-header" />
+                                    <ItemsControl ItemsSource="{Binding SteeringAssists}" ItemTemplate="{StaticResource DriveAssistOption}" />
+                                    <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="4">
+                                        <TextBlock Text="{loc:Tr EcuHandbrakeButton}" Classes="dim" VerticalAlignment="Center" />
+                                        <ComboBox ItemsSource="{Binding AssistHandbrakeButtons}" SelectedIndex="{Binding DriveAssistHandbrakeIndex, Mode=TwoWay}"
+                                                  AutomationProperties.Name="{loc:Tr EcuHandbrakeButton}" MinWidth="66" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Row="0" Grid.Column="1" Classes="card">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="{loc:Tr EcuPedalsGroup}" Classes="section-header" />
+                                    <ItemsControl ItemsSource="{Binding PedalAssists}" ItemTemplate="{StaticResource DriveAssistOption}" />
+                                    <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="4">
+                                        <TextBlock Text="{loc:Tr EcuLaunchSetpoint}" Classes="dim" VerticalAlignment="Center" />
+                                        <NumericUpDown Value="{Binding DriveAssistLaunchRpm, Mode=TwoWay}" Minimum="30" Maximum="80" Increment="1" Width="134"
+                                                       AutomationProperties.Name="{loc:Tr EcuLaunchSetpoint}" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Row="1" Grid.Column="0" Classes="card">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="{loc:Tr EcuSurfaceGroup}" Classes="section-header" />
+                                    <ItemsControl ItemsSource="{Binding SurfaceAssists}" ItemTemplate="{StaticResource DriveAssistOption}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Row="1" Grid.Column="1" Classes="card">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="{loc:Tr EcuVehicleGroup}" Classes="section-header" />
+                                    <ItemsControl ItemsSource="{Binding VehicleAssists}" ItemTemplate="{StaticResource DriveAssistOption}" />
+                                    <CheckBox Content="{loc:Tr EcuTireFahrenheit}" IsChecked="{Binding DriveAssistTireTempFahrenheit, Mode=TwoWay}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                        <Expander Header="{loc:Tr EcuAdvancedSettings}">
+                            <StackPanel Spacing="8" Margin="10">
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="12" LineSpacing="8">
+                                    <StackPanel Spacing="3">
+                                        <TextBlock Text="{loc:Tr EcuSteerDeadzone}" Classes="dim" />
+                                        <NumericUpDown Value="{Binding DriveAssistSteeringDeadzone, Mode=TwoWay}" Minimum="0" Maximum="30" Increment="1" Width="154"
+                                                       AutomationProperties.Name="{loc:Tr EcuSteerDeadzone}" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="3">
+                                        <TextBlock Text="{loc:Tr EcuSteerDebounce}" Classes="dim" />
+                                        <NumericUpDown Value="{Binding DriveAssistSteeringDebounce, Mode=TwoWay}" Minimum="0" Maximum="200" Increment="1" Width="154"
+                                                       AutomationProperties.Name="{loc:Tr EcuSteerDebounce}" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="3">
+                                        <TextBlock Text="{loc:Tr EcuSlipTarget}" Classes="dim" />
+                                        <NumericUpDown Value="{Binding DriveAssistTargetSlip, Mode=TwoWay}" Minimum="50" Maximum="150" Increment="1" Width="154"
+                                                       IsEnabled="{Binding !DriveAssistUseGameTractionControl}" AutomationProperties.Name="{loc:Tr EcuSlipTarget}" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="3">
+                                        <TextBlock Text="{loc:Tr EcuBrakeBias}" Classes="dim" />
+                                        <NumericUpDown Value="{Binding DriveAssistBrakeBias, Mode=TwoWay}" Minimum="45" Maximum="75" Increment="1" Width="154"
+                                                       IsEnabled="{Binding !DriveAssistUseGameAbs}" AutomationProperties.Name="{loc:Tr EcuBrakeBias}" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="3">
+                                        <TextBlock Text="{loc:Tr EcuCruiseSetpoint}" Classes="dim" />
+                                        <NumericUpDown Value="{Binding DriveAssistTargetSpeed, Mode=TwoWay}" Minimum="25" Maximum="160" Increment="1" Width="154"
+                                                       AutomationProperties.Name="{loc:Tr EcuCruiseSetpoint}" />
+                                    </StackPanel>
+                                </WrapPanel>
+                                <TextBlock Text="{loc:Tr EcuBrakeBiasHelp}" Classes="hint" TextWrapping="Wrap" />
+                                <Button Content="{loc:Tr EcuResetCalibration}" Classes="ghost" Command="{Binding ResetAssistCalibrationCommand}" HorizontalAlignment="Left" />
+                            </StackPanel>
+                        </Expander>
+                        <Border Classes="card" IsVisible="{Binding IsCruiseSelected}">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{loc:Tr EcuCruise}" Classes="section-header" />
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="6">
+                                    <CheckBox Content="{loc:Tr EcuSkidpadMode}" IsChecked="{Binding DriveAssistSkidpad, Mode=TwoWay}" />
+                                </WrapPanel>
+                                <TextBlock Text="{Binding DriveAssistTrialReport}" TextWrapping="Wrap" Classes="dim" />
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="6">
+                                    <Button Content="{loc:Tr EcuStartTrial}" Classes="primary" Command="{Binding RequestCruiseCommand}" IsEnabled="{Binding CanRequestCruise}" />
+                                    <Button Content="{loc:Tr EcuCancelTrial}" Classes="ghost" Command="{Binding CancelCruiseCommand}" IsEnabled="{Binding IsCruiseBusy}" />
+                                    <Button Content="{loc:Tr EcuSaveTrial}" Classes="ghost" Command="{Binding SaveDriveAssistRunCommand}" CommandParameter="trial"
+                                            IsEnabled="{Binding HasDriveAssistTrialReport}" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                        <Expander x:Name="AssistLiveAnalysis" Header="{loc:Tr EcuAnalysisTitle}" IsExpanded="True">
+                            <StackPanel Spacing="7" Margin="10">
+                                <TextBlock Text="{loc:Tr EcuPlotTitle}" Classes="section-header" TextWrapping="Wrap" />
+                                <controls:DriveAssistAnalysisPlot Height="185" Points="{Binding AssistGPoints}" Envelope="{Binding AssistGripEnvelope}"
+                                                                  Sideslip="{Binding AssistSideslip}" SignalBrush="{DynamicResource AccentBrush}"
+                                                                  AutomationProperties.Name="{loc:Tr EcuPlotTitle}" />
+                                <ItemsControl ItemsSource="{Binding AssistWheels}">
+                                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:AssistWheelReading">
+                                            <Border Background="{Binding Background}" Padding="8,5" Margin="0,0,6,5" CornerRadius="3">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Wheel}" Classes="subtle" />
+                                                    <TextBlock Text="{Binding Reading}" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="{Binding AssistInputs}" Classes="dim" TextWrapping="Wrap" IsVisible="{Binding !ShowAssistReplay}" />
+                                <TextBlock Text="{Binding AssistRisk}" Classes="dim" TextWrapping="Wrap" IsVisible="{Binding !ShowAssistReplay}" />
+                                <TextBlock Text="{Binding AssistRoad}" Classes="dim" TextWrapping="Wrap" IsVisible="{Binding !ShowAssistReplay}" />
+                                <TextBlock Text="{Binding AssistCalibration}" Classes="dim" TextWrapping="Wrap" IsVisible="{Binding !ShowAssistReplay}" />
+                                <TextBlock Text="{Binding AssistResponse}" Classes="dim" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding AssistCorners}" Classes="dim" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding AssistCoaching}" Classes="dim" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Expander>
+                        <Expander x:Name="AssistReplayPanel" Header="{loc:Tr EcuReplayTitle}">
+                            <StackPanel Spacing="8" Margin="10">
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="6">
+                                    <Button Content="{loc:Tr EcuReplayLast}" Classes="primary" Command="{Binding LoadAssistReplayCommand}" />
+                                    <Button Content="{loc:Tr EcuReplayFolder}" Classes="ghost" Click="ChooseAssistReplay" />
+                                    <Button Content="{loc:Tr EcuReplayRecompute}" Classes="ghost" Command="{Binding ReloadAssistReplayCommand}" IsEnabled="{Binding HasAssistReplay}" />
+                                    <Button Content="{loc:Tr EcuReplayLive}" Classes="ghost" Command="{Binding ShowAssistLiveCommand}" IsEnabled="{Binding ShowAssistReplay}" />
+                                </WrapPanel>
+                                <TextBlock Text="{Binding AssistReplayStatus}" TextWrapping="Wrap" Classes="dim" />
+                                <StackPanel Spacing="6" IsVisible="{Binding HasAssistReplay}">
+                                    <ComboBox ItemsSource="{Binding AssistReplayEvents}" SelectedItem="{Binding SelectedAssistEvent, Mode=TwoWay}"
+                                              PlaceholderText="{loc:Tr EcuReplayEvents}" AutomationProperties.Name="{loc:Tr EcuReplayEvents}">
+                                        <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:AssistReplayEvent"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <Slider Minimum="0" Maximum="{Binding AssistReplayDuration}" Value="{Binding AssistReplayPosition, Mode=TwoWay}"
+                                            IsVisible="{Binding ShowAssistReplay}" AutomationProperties.Name="{loc:Tr EcuReplayTimeline}" />
+                                    <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="6">
+                                        <Button Content="{loc:Tr EcuReplayPlay}" Classes="ghost" Command="{Binding PlayAssistReplayCommand}" IsEnabled="{Binding !IsAssistReplayPlaying}" />
+                                        <Button Content="{loc:Tr EcuReplayPause}" Classes="ghost" Command="{Binding StopAssistPlaybackCommand}" IsEnabled="{Binding IsAssistReplayPlaying}" />
+                                        <Button Content="{loc:Tr EcuReplayBack}" Classes="ghost" Command="{Binding StepAssistReplayCommand}" CommandParameter="back" />
+                                        <Button Content="{loc:Tr EcuReplayNext}" Classes="ghost" Command="{Binding StepAssistReplayCommand}" CommandParameter="next" />
+                                    </WrapPanel>
+                                    <TextBlock Text="{Binding AssistReplayFrameText}" Classes="dim" TextWrapping="Wrap" IsVisible="{Binding ShowAssistReplay}" />
+                                </StackPanel>
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="6">
+                                    <Button Content="{loc:Tr EcuLearnRoute}" Classes="ghost" Command="{Binding LearnAssistRouteCommand}" />
+                                    <Button Content="{loc:Tr EcuLoadVision}" Classes="ghost" Click="ChooseAssistVision" IsEnabled="{Binding HasAssistReplay}" />
+                                    <Button Content="{loc:Tr EcuClearRoute}" Classes="ghost" Command="{Binding ClearAssistRouteCommand}" />
+                                </WrapPanel>
+                                <TextBlock Text="{loc:Tr EcuVisionHelp}" Classes="hint" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding AssistRouteStatus}" Classes="dim" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding AssistRouteText}" Classes="dim" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Expander>
+                        <Border Classes="card">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{loc:Tr EcuFeedback}" Classes="section-header" />
+                                <TextBlock Text="{Binding DriveAssistReport}" Classes="dim" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding DriveAssistLapReport}" Classes="dim" TextWrapping="Wrap" IsVisible="{Binding HasDriveAssistLapReport}" />
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="6">
+                                    <Button Content="{loc:Tr EcuSaveSegment}" Classes="ghost" Command="{Binding SaveDriveAssistRunCommand}" CommandParameter="segment"
+                                            IsEnabled="{Binding HasDriveAssistReport}" />
+                                    <Button Content="{loc:Tr EcuSaveLap}" Classes="ghost" Command="{Binding SaveDriveAssistRunCommand}" CommandParameter="lap"
+                                            IsEnabled="{Binding HasDriveAssistLapReport}" />
+                                    <Button Content="{loc:Tr EcuStartSegment}" Classes="ghost" Command="{Binding ClearDriveAssistLogCommand}" />
+                                    <Button Content="{loc:Tr TabCompare}" Classes="ghost" Command="{Binding NavigateToTabCommand}"
+                                            CommandParameter="{x:Static vm:TelemetryTab.Compare}" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                        <Expander Header="{loc:Tr CmpSelectHeader}">
+                            <StackPanel Spacing="8" Margin="10">
+                                <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*" RowSpacing="6" ColumnSpacing="8">
+                                    <TextBlock Text="{loc:Tr CmpBase}" Classes="dim" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding CompareOptions}" SelectedItem="{Binding CompareBase, Mode=TwoWay}"
+                                              AutomationProperties.Name="{loc:Tr CmpBase}">
+                                        <ComboBox.ItemTemplate><DataTemplate x:DataType="telemetry:TestResult"><TextBlock Text="{Binding LocalizedTitle}" /></DataTemplate></ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <TextBlock Grid.Row="1" Text="{loc:Tr CmpTarget}" Classes="dim" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding CompareOptions}" SelectedItem="{Binding CompareTarget, Mode=TwoWay}"
+                                              AutomationProperties.Name="{loc:Tr CmpTarget}">
+                                        <ComboBox.ItemTemplate><DataTemplate x:DataType="telemetry:TestResult"><TextBlock Text="{Binding LocalizedTitle}" /></DataTemplate></ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </Grid>
+                                <Button Content="{loc:Tr BtnGenerateCmp}" Classes="ghost" Command="{Binding GenerateComparisonCommand}" HorizontalAlignment="Left" />
+                                <TextBlock Text="{Binding CompareSummary}" Classes="dim" TextWrapping="Wrap" />
+                                <ItemsControl ItemsSource="{Binding CompareRows}">
+                                    <ItemsControl.ItemTemplate><DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" Classes="dim" TextWrapping="Wrap" /></DataTemplate></ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="{loc:Tr TabShortcuts}">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <Border Classes="card">
+                        <StackPanel Spacing="8">
+                            <CheckBox Content="{loc:Tr ChkEnableShortcuts}" IsChecked="{Binding AutoShiftShortcutEnabled, Mode=TwoWay}"
+                                      IsEnabled="{Binding !IsConnectingAutoShift}" ToolTip.Tip="{loc:Tr TipEnableShortcuts}" />
+                            <Grid x:Name="ShortcutBindings" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="6" ColumnDefinitions="Auto,120,*,Auto" ColumnSpacing="10"
+                                  IsEnabled="{Binding !IsRecordingShortcut}">
+                                <TextBlock Grid.Column="1" Text="{loc:Tr ColKeyboardMouse}" Classes="subtle" />
+                                <TextBlock Grid.Column="2" Text="{loc:Tr ColGamepad}" Classes="subtle" />
+                                <TextBlock Grid.Row="1" Text="{loc:Tr ScAutoShift}" Classes="subtle" VerticalAlignment="Center"
+                                           ToolTip.Tip="{loc:Tr TipScAutoShift}" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding AutoShiftToggleKeyboard}" PlaceholderText="{loc:Tr PhUnbound}"
+                                         AutomationProperties.Name="{loc:Tr AutoScKbShift}" />
+                                <ComboBox Grid.Row="1" Grid.Column="2" HorizontalAlignment="Stretch" ItemsSource="{Binding ShiftShortcutChoices}"
+                                          ItemTemplate="{StaticResource ShortcutButtonLabel}" SelectedItem="{Binding AutoShiftToggleGamepad, Mode=TwoWay}"
+                                          AutomationProperties.Name="{loc:Tr AutoScPadShift}" />
+                                <TextBlock Grid.Row="2" Text="{loc:Tr ScAutoClutch}" Classes="subtle" VerticalAlignment="Center"
+                                           ToolTip.Tip="{loc:Tr TipScAutoClutch}" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding AutoShiftClutchToggleKeyboard}" PlaceholderText="{loc:Tr PhUnbound}"
+                                         AutomationProperties.Name="{loc:Tr AutoScKbClutch}" />
+                                <ComboBox Grid.Row="2" Grid.Column="2" HorizontalAlignment="Stretch" ItemsSource="{Binding ShiftShortcutChoices}"
+                                          ItemTemplate="{StaticResource ShortcutButtonLabel}" SelectedItem="{Binding AutoShiftClutchToggleGamepad, Mode=TwoWay}"
+                                          AutomationProperties.Name="{loc:Tr AutoScPadClutch}" />
+                                <TextBlock Grid.Row="3" Text="{loc:Tr ScHud}" Classes="subtle" VerticalAlignment="Center"
+                                           ToolTip.Tip="{loc:Tr TipScHud}" />
+                                <TextBox x:Name="HudShortcutKey" Grid.Row="3" Grid.Column="1" Text="{Binding HudToggleKeyboard}" PlaceholderText="{loc:Tr PhUnbound}"
+                                         AutomationProperties.Name="{loc:Tr AutoScKbHud}" />
+                                <ComboBox Grid.Row="3" Grid.Column="2" HorizontalAlignment="Stretch" ItemsSource="{Binding ShiftShortcutChoices}"
+                                          ItemTemplate="{StaticResource ShortcutButtonLabel}" SelectedItem="{Binding HudToggleGamepad, Mode=TwoWay}"
+                                          AutomationProperties.Name="{loc:Tr AutoScPadHud}" />
+                                <TextBlock Grid.Row="4" Text="{loc:Tr ScStartRec}" Classes="subtle" VerticalAlignment="Center"
+                                           ToolTip.Tip="{loc:Tr TipScStartRec}" />
+                                <TextBox x:Name="StartRecordingShortcutKey" Grid.Row="4" Grid.Column="1" Text="{Binding StartRecordingKeyboard}" PlaceholderText="{loc:Tr PhUnbound}"
+                                         AutomationProperties.Name="{loc:Tr AutoScKbStartRec}" />
+                                <ComboBox Grid.Row="4" Grid.Column="2" HorizontalAlignment="Stretch" ItemsSource="{Binding ShiftShortcutChoices}"
+                                          ItemTemplate="{StaticResource ShortcutButtonLabel}" SelectedItem="{Binding StartRecordingGamepad, Mode=TwoWay}"
+                                          AutomationProperties.Name="{loc:Tr AutoScPadStartRec}" />
+                                <TextBlock Grid.Row="5" Text="{loc:Tr ScStopRec}" Classes="subtle" VerticalAlignment="Center"
+                                           ToolTip.Tip="{loc:Tr TipScStopRec}" />
+                                <TextBox x:Name="StopRecordingShortcutKey" Grid.Row="5" Grid.Column="1" Text="{Binding StopRecordingKeyboard}" PlaceholderText="{loc:Tr PhUnbound}"
+                                         AutomationProperties.Name="{loc:Tr AutoScKbStopRec}" />
+                                <ComboBox Grid.Row="5" Grid.Column="2" HorizontalAlignment="Stretch" ItemsSource="{Binding ShiftShortcutChoices}"
+                                          ItemTemplate="{StaticResource ShortcutButtonLabel}" SelectedItem="{Binding StopRecordingGamepad, Mode=TwoWay}"
+                                          AutomationProperties.Name="{loc:Tr AutoScPadStopRec}" />
+                                <TextBlock Grid.Row="6" Text="{loc:Tr ScDriveAssist}" Classes="subtle" VerticalAlignment="Center"
+                                           ToolTip.Tip="{loc:Tr TipScDriveAssist}" />
+                                <TextBox x:Name="DriveAssistShortcutKey" Grid.Row="6" Grid.Column="1" Text="{Binding DriveAssistToggleKeyboard, Mode=TwoWay}"
+                                         PlaceholderText="{loc:Tr PhUnbound}" AutomationProperties.Name="{loc:Tr AutoScKbDriveAssist}" />
+                                <ComboBox x:Name="DriveAssistShortcutButton" Grid.Row="6" Grid.Column="2" HorizontalAlignment="Stretch"
+                                          ItemsSource="{Binding ShiftShortcutChoices}" ItemTemplate="{StaticResource ShortcutButtonLabel}"
+                                          SelectedItem="{Binding DriveAssistToggleGamepad, Mode=TwoWay}" AutomationProperties.Name="{loc:Tr AutoScPadDriveAssist}" />
+                                <Button x:Name="CaptureAutoShiftShortcut" Grid.Row="1" Grid.Column="3" Content="{loc:Tr ScCapture}" Classes="ghost" VerticalAlignment="Center"
+                                        Command="{Binding RecordShortcutCommand}" CommandParameter="{x:Static telemetry:ShortcutAction.AutoShift}" />
+                                <Button Grid.Row="2" Grid.Column="3" Content="{loc:Tr ScCapture}" Classes="ghost" VerticalAlignment="Center"
+                                        Command="{Binding RecordShortcutCommand}" CommandParameter="{x:Static telemetry:ShortcutAction.Clutch}" />
+                                <Button x:Name="CaptureHudShortcut" Grid.Row="3" Grid.Column="3" Content="{loc:Tr ScCapture}" Classes="ghost" VerticalAlignment="Center"
+                                        Command="{Binding RecordShortcutCommand}" CommandParameter="{x:Static telemetry:ShortcutAction.Hud}" />
+                                <Button Grid.Row="4" Grid.Column="3" Content="{loc:Tr ScCapture}" Classes="ghost" VerticalAlignment="Center"
+                                        Command="{Binding RecordShortcutCommand}" CommandParameter="{x:Static telemetry:ShortcutAction.RecordStart}" />
+                                <Button Grid.Row="5" Grid.Column="3" Content="{loc:Tr ScCapture}" Classes="ghost" VerticalAlignment="Center"
+                                        Command="{Binding RecordShortcutCommand}" CommandParameter="{x:Static telemetry:ShortcutAction.RecordStop}" />
+                                <Button Grid.Row="6" Grid.Column="3" Content="{loc:Tr ScCapture}" Classes="ghost" VerticalAlignment="Center"
+                                        Command="{Binding RecordShortcutCommand}" CommandParameter="{x:Static telemetry:ShortcutAction.DriveAssist}" />
+                                <TextBlock Grid.Row="7" Text="{loc:Tr EcuEmergency}" Classes="subtle" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding EmergencyKeyboard, Mode=TwoWay}"
+                                         PlaceholderText="{loc:Tr PhUnbound}" AutomationProperties.Name="{loc:Tr EcuEmergency}" />
+                                <ComboBox Grid.Row="7" Grid.Column="2" ItemsSource="{Binding ShiftShortcutChoices}"
+                                          ItemTemplate="{StaticResource ShortcutButtonLabel}" SelectedItem="{Binding EmergencyGamepad, Mode=TwoWay}"
+                                          AutomationProperties.Name="{loc:Tr EcuEmergency}" />
+                                <Button Grid.Row="7" Grid.Column="3" Content="{loc:Tr ScCapture}" Classes="ghost"
+                                        Command="{Binding RecordShortcutCommand}" CommandParameter="{x:Static telemetry:ShortcutAction.Emergency}" />
+                                <TextBlock Grid.Row="8" Text="{loc:Tr EcuDriftExit}" Classes="subtle" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding DriftExitKeyboard, Mode=TwoWay}"
+                                         PlaceholderText="{loc:Tr PhUnbound}" AutomationProperties.Name="{loc:Tr EcuDriftExit}" />
+                                <ComboBox Grid.Row="8" Grid.Column="2" ItemsSource="{Binding ShiftShortcutChoices}"
+                                          ItemTemplate="{StaticResource ShortcutButtonLabel}" SelectedItem="{Binding DriftExitGamepad, Mode=TwoWay}"
+                                          AutomationProperties.Name="{loc:Tr EcuDriftExit}" />
+                                <Button Grid.Row="8" Grid.Column="3" Content="{loc:Tr ScCapture}" Classes="ghost"
+                                        Command="{Binding RecordShortcutCommand}" CommandParameter="{x:Static telemetry:ShortcutAction.DriftExit}" />
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" IsVisible="{Binding IsRecordingShortcut}">
+                                <Border x:Name="ShortcutMouseCaptureArea" Classes="card" Background="#17283F" Padding="14" Focusable="True"
+                                        PointerEntered="OnShortcutCaptureEntered" PointerExited="OnShortcutCaptureExited">
+                                    <TextBlock Text="{loc:Tr ScMouseCaptureArea}" TextWrapping="Wrap" />
+                                </Border>
+                                <Button Grid.Column="1" Content="{loc:Tr ScCaptureCancel}" Classes="ghost" VerticalAlignment="Center"
+                                        Command="{Binding CancelShortcutCaptureCommand}" />
+                            </Grid>
+                            <Button Content="{loc:Tr BtnSaveShortcuts}" HorizontalAlignment="Left" IsEnabled="{Binding !IsRecordingShortcut}"
+                                    Command="{Binding SaveAutoShiftShortcutCommand}" ToolTip.Tip="{loc:Tr TipSaveShortcuts}" />
+                            <TextBlock Classes="hint" TextWrapping="Wrap"
+                                       Text="{loc:Tr HintShortcuts}" />
+                            <TextBlock Text="{Binding AutoShiftShortcutStatus}" Classes="subtle" TextWrapping="Wrap"
+                                       IsVisible="{Binding AutoShiftShortcutStatus, Converter={x:Static converters:StringConverters.IsNotNullOrEmpty}}" />
+                            <TextBlock Text="{Binding AutoShiftSettingsError}" Classes="subtle" TextWrapping="Wrap"
+                                       IsVisible="{Binding AutoShiftSettingsError, Converter={x:Static converters:StringConverters.IsNotNullOrEmpty}}" />
+                            <TextBlock Text="{Binding DriveAssistError}" Classes="subtle" TextWrapping="Wrap"
+                                       IsVisible="{Binding DriveAssistError, Converter={x:Static converters:StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
+                    </Border>
+                </ScrollViewer>
+            </TabItem>
+            <!-- ① 实时总览 -->
+            <TabItem Header="{loc:Tr TabOverview}">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Spacing="10">
+                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
+                            <Border Grid.Column="0" Classes="card">
+                                <controls:TelemetryGauge Height="210" Title="{loc:Tr GaugeSpeed}" Unit="km/h"
+                                                         Value="{Binding SpeedValue}" Maximum="{Binding SpeedMaximum}"
+                                                         ValueText="{Binding SpeedValueText}" IsDataValid="{Binding HasData}" />
+                            </Border>
+                            <Border Grid.Column="1" Classes="card">
+                                <controls:TelemetryGauge Height="210" Title="{loc:Tr GaugeRpm}" Unit="rpm"
+                                                         Value="{Binding RpmValue}" Maximum="{Binding RpmMaximum}"
+                                                         Redline="{Binding RpmRedline}"
+                                                         ValueText="{Binding RpmValueText}" IsDataValid="{Binding HasData}" />
+                            </Border>
+                            <Border Grid.Column="2" Classes="card">
+                                <Grid RowDefinitions="Auto,*,Auto" Margin="4">
+                                    <TextBlock Text="{loc:Tr LabelGear}" Classes="dim" HorizontalAlignment="Center" />
+                                    <TextBlock Grid.Row="1" Text="{Binding GearText}" FontSize="64" FontWeight="Bold"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource AccentBrush}" />
+                                    <StackPanel Grid.Row="2" Spacing="6">
+                                        <TextBlock Text="{loc:Tr LabelThrottle}" Classes="dim" />
+                                        <ProgressBar Minimum="0" Maximum="100" Height="8" Value="{Binding ThrottleValue}" />
+                                        <TextBlock Text="{Binding ThrottleText}" Classes="subtle" />
+                                        <TextBlock Text="{loc:Tr LabelBrake}" Classes="dim" />
+                                        <ProgressBar Minimum="0" Maximum="100" Height="8" Value="{Binding BrakeValue}" />
+                                        <TextBlock Text="{Binding BrakeText}" Classes="subtle" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </Grid>
+
+                        <Border Classes="card">
+                            <Grid ColumnDefinitions="*,*,*,*,*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="8">
+                                <StackPanel Grid.Row="0" Grid.Column="0"><TextBlock Text="{loc:Tr OvPeakSpeed}" Classes="dim" /><TextBlock Text="{Binding PeakSpeedText}" Classes="h3" /></StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="1"><TextBlock Text="{loc:Tr OvPower}" Classes="dim" /><TextBlock Text="{Binding PowerText}" Classes="h3" /></StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="2"><TextBlock Text="{loc:Tr OvPeakPower}" Classes="dim" /><TextBlock Text="{Binding PeakPowerText}" Classes="h3" /></StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="3"><TextBlock Text="{loc:Tr OvTorque}" Classes="dim" /><TextBlock Text="{Binding TorqueText}" Classes="h3" /></StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="4"><TextBlock Text="{loc:Tr OvPeakTorque}" Classes="dim" /><TextBlock Text="{Binding PeakTorqueText}" Classes="h3" /></StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="5"><TextBlock Text="{loc:Tr OvBest0100}" Classes="dim" /><TextBlock Text="{Binding ZeroToHundredText}" Classes="h3" /></StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="0"><TextBlock Text="{loc:Tr OvLongG}" Classes="dim" /><TextBlock Text="{Binding LongitudinalGText}" Classes="h3" /></StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="1"><TextBlock Text="{loc:Tr OvLatG}" Classes="dim" /><TextBlock Text="{Binding LateralGText}" Classes="h3" /></StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="2"><TextBlock Text="{loc:Tr OvCombG}" Classes="dim" /><TextBlock Text="{Binding CombinedGText}" Classes="h3" /></StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="3"><TextBlock Text="{loc:Tr OvSteer}" Classes="dim" /><TextBlock Text="{Binding SteerText}" Classes="h3" /></StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="4"><TextBlock Text="{loc:Tr OvDrivingState}" Classes="dim" /><TextBlock Text="{Binding DrivingStateText}" Classes="h3" /></StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="5"><TextBlock Text="{loc:Tr OvTestState}" Classes="dim" /><TextBlock Text="{Binding TestStateText}" Classes="h3" /></StackPanel>
+                            </Grid>
+                        </Border>
+                        <TextBlock Classes="hint" TextWrapping="Wrap"
+                                   Text="{loc:Tr OvDisclaimer}" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ② 全部参数 -->
+            <TabItem Header="{loc:Tr TabAllParams}">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding ParameterGroups}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ParameterGroup">
+                                <Border Classes="card" Margin="0,0,0,10">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="{Binding Title}" Classes="section-header" />
+                                        <ItemsControl ItemsSource="{Binding Rows}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:ParameterRow">
+                                                    <Grid ColumnDefinitions="200,170,64,80,*" Margin="0,2">
+                                                        <TextBlock Grid.Column="0" Text="{Binding Name}" Classes="subtle" TextWrapping="Wrap" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
+                                                        <TextBlock Grid.Column="2" Text="{Binding Unit}" Classes="dim" TextWrapping="Wrap" />
+                                                        <TextBlock Grid.Column="3" Text="{Binding Source}" Classes="dim" />
+                                                        <TextBlock Grid.Column="4" Text="{Binding Detail}" Classes="dim" TextWrapping="Wrap" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ③ 性能测试 -->
+            <TabItem Header="{loc:Tr TabTests}">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Spacing="10">
+                        <Border Classes="card">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{loc:Tr TestsHeader}" Classes="section-header" />
+                                <TextBlock Text="{Binding TestStateText}" Classes="h3" />
+                                <TextBlock Text="{Binding ActiveTestText}" Classes="dim" />
+                                <ItemsControl ItemsSource="{Binding EnabledTests}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="telemetry:TestDefinition">
+                                            <Border Classes="card" Padding="10,6" Margin="0,0,8,8">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="{Binding RangeText}" VerticalAlignment="Center" />
+                                                    <Button Content="{loc:Tr BtnRemove}" Classes="ghost-sm"
+                                                            Command="{Binding $parent[UserControl].((vm:PerformanceTelemetryViewModel)DataContext).RemoveTestCommand}"
+                                                            CommandParameter="{Binding}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBox Text="{Binding CustomAccelerationRange}" Width="120" PlaceholderText="0-200" />
+                                    <Button Content="{loc:Tr BtnAddAccel}" Classes="ghost-sm" Command="{Binding AddCustomAccelerationCommand}" />
+                                    <TextBox Text="{Binding CustomBrakingSpeed}" Width="80" PlaceholderText="100" />
+                                    <Button Content="{loc:Tr BtnAddBrake}" Classes="ghost-sm" Command="{Binding AddCustomBrakingCommand}" />
+                                    <TextBox Text="{Binding CustomDistanceMeters}" Width="90" PlaceholderText="500" />
+                                    <Button Content="{loc:Tr BtnAddDist}" Classes="ghost-sm" Command="{Binding AddCustomDistanceCommand}" />
+                                    <Button Content="{loc:Tr BtnFinishTopSpeed}" Classes="ghost-sm" Command="{Binding FinishTopSpeedCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{loc:Tr TestSummariesHeader}" Classes="section-header" />
+                                <ItemsControl ItemsSource="{Binding TestSummaries}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:TestSummary">
+                                            <Grid ColumnDefinitions="200,110,110,110,70" Margin="0,2">
+                                                <TextBlock Grid.Column="0" Text="{Binding Title}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Best}" />
+                                                <TextBlock Grid.Column="2" Text="{Binding Last}" Classes="dim" />
+                                                <TextBlock Grid.Column="3" Text="{Binding Average}" Classes="dim" />
+                                                <TextBlock Grid.Column="4" Text="{Binding Count}" Classes="dim" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Classes="hint" TextWrapping="Wrap"
+                                           Text="{loc:Tr TestSummariesHint}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{loc:Tr EcuSteadyTest}" Classes="section-header" />
+                                <TextBlock Text="{Binding DriveAssistTrialReport}" Classes="dim" TextWrapping="Wrap" />
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="6">
+                                    <Button Content="{loc:Tr TabDriveAssist}" Classes="ghost" Command="{Binding NavigateToTabCommand}"
+                                            CommandParameter="{x:Static vm:TelemetryTab.DriveAssist}" />
+                                    <Button Content="{loc:Tr EcuSaveTrial}" Classes="ghost" Command="{Binding SaveDriveAssistRunCommand}" CommandParameter="trial"
+                                            IsEnabled="{Binding HasDriveAssistTrialReport}" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ④ 实时曲线 -->
+            <TabItem Header="{loc:Tr TabCharts}">
+                <Grid RowDefinitions="Auto,*" RowSpacing="8">
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{loc:Tr LabelTimeWindowSec}" VerticalAlignment="Center" Classes="dim" />
+                        <NumericUpDown Value="{Binding ChartWindowSeconds}" Minimum="5" Maximum="600" Increment="5" Width="120" />
+                        <Button Content="{loc:Tr BtnPauseResume}" Classes="ghost-sm" Command="{Binding ToggleChartPauseCommand}" />
+                        <Button Content="{loc:Tr BtnClearCharts}" Classes="ghost-sm" Command="{Binding ClearChartsCommand}" />
+                        <CheckBox Content="{loc:Tr ChkShowGearChart}" IsChecked="{Binding ShowGearChart, Mode=TwoWay}" />
+                        <TextBlock Text="{loc:Tr HintHoverChart}" Classes="dim" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{loc:Tr ChartSpeed}" Classes="section-header" />
+                            <Border Classes="card"><controls:TelemetryChart x:Name="SpeedChart" Height="150" XUnit="s" /></Border>
+                            <TextBlock Text="{loc:Tr ChartGear}" Classes="section-header" IsVisible="{Binding ShowGearChart}" />
+                            <Border Classes="card" IsVisible="{Binding ShowGearChart}"><controls:TelemetryChart x:Name="GearChart" Height="150" XUnit="s" /></Border>
+                            <TextBlock Text="{loc:Tr ChartPowerTorque}" Classes="section-header" />
+                            <Border Classes="card"><controls:TelemetryChart x:Name="PowerTorqueChart" Height="150" XUnit="s" /></Border>
+                            <TextBlock Text="{loc:Tr ChartAccelG}" Classes="section-header" />
+                            <Border Classes="card"><controls:TelemetryChart x:Name="AccelerationChart" Height="150" XUnit="s" /></Border>
+                            <TextBlock Text="{loc:Tr ChartInputs}" Classes="section-header" />
+                            <Border Classes="card"><controls:TelemetryChart x:Name="InputChart" Height="150" XUnit="s" /></Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
+            <!-- ⑤ 调校对比 -->
+            <TabItem Header="{loc:Tr TabCompare}">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Spacing="10">
+                        <Border Classes="card">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{loc:Tr CmpSnapshotTitle}" Classes="section-header" />
+                                <TextBlock Text="{Binding SnapshotInfoText}" Classes="dim" TextWrapping="Wrap" />
+                                <Button Content="{loc:Tr BtnSaveSnapshot}" Classes="ghost-sm" Command="{Binding SaveVehicleSnapshotCommand}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{loc:Tr CmpSelectHeader}" Classes="section-header" />
+                                <Grid ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="8">
+                                    <TextBlock Grid.Column="0" Text="{loc:Tr CmpBase}" VerticalAlignment="Center" Classes="dim" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding CompareOptions}" SelectedItem="{Binding CompareBase}" HorizontalAlignment="Stretch">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="telemetry:TestResult">
+                                                <TextBlock Text="{Binding LocalizedTitle}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <TextBlock Grid.Column="2" Text="{loc:Tr CmpTarget}" VerticalAlignment="Center" Classes="dim" />
+                                    <ComboBox Grid.Column="3" ItemsSource="{Binding CompareOptions}" SelectedItem="{Binding CompareTarget}" HorizontalAlignment="Stretch">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="telemetry:TestResult">
+                                                <TextBlock Text="{Binding LocalizedTitle}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </Grid>
+                                <Button Content="{loc:Tr BtnGenerateCmp}" Classes="primary" Command="{Binding GenerateComparisonCommand}" HorizontalAlignment="Left" />
+                                <TextBlock Text="{Binding CompareSummary}" Classes="subtle" TextWrapping="Wrap" />
+                                <ItemsControl ItemsSource="{Binding CompareRows}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" Classes="subtle" TextWrapping="Wrap" Margin="0,1" /></DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Classes="hint" TextWrapping="Wrap"
+                                           Text="{loc:Tr CmpDisclaimer}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ⑥ 历史记录 -->
+            <TabItem Header="{loc:Tr TabHistory}">
+                <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
+                        <TextBox Text="{Binding HistoryFilter}" PlaceholderText="{loc:Tr PhSearchHistory}" Width="240" />
+                        <ComboBox ItemsSource="{Binding HistoryVehicles}" SelectedItem="{Binding HistoryVehicleFilter}" Width="180" />
+                        <Button Content="{loc:Tr BtnExportCsv}" Classes="ghost-sm" Command="{Binding ExportCsvCommand}" />
+                        <Button Content="{loc:Tr BtnExportJson}" Classes="ghost-sm" Command="{Binding ExportJsonCommand}" />
+                        <Button Content="{loc:Tr BtnExportHtml}" Classes="ghost-sm" Command="{Binding ExportHtmlReportCommand}" />
+                        <Button Content="{loc:Tr BtnBackup}" Classes="ghost-sm" Command="{Binding BackupStoreCommand}" />
+                        <Button Content="{loc:Tr BtnOpenFolder}" Classes="ghost-sm" Command="{Binding OpenStoreFolderCommand}" />
+                        <Button Content="{loc:Tr BtnDeleteAll}" Classes="ghost-sm" Command="{Binding DeleteAllRecordsCommand}" />
+                    </StackPanel>
+                    <TextBlock Grid.Row="1" Text="{Binding HistoryInfoText}" Classes="dim" TextWrapping="Wrap" />
+                    <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding HistoryRecords}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="telemetry:TestResult">
+                                    <Border Classes="card" Padding="10,6" Margin="0,0,0,6">
+                                        <Grid ColumnDefinitions="*,Auto,Auto">
+                                            <StackPanel Grid.Column="0" Spacing="2">
+                                                <TextBlock Text="{Binding LocalizedTitle}" />
+                                                <TextBlock Classes="dim">
+                                                    <Run Text="{Binding CarName}" /><Run Text=" · " />
+                                                    <Run Text="{Binding RecordedAtLocal, StringFormat={}{0:yyyy-MM-dd HH:mm}}" /><Run Text=" · " />
+                                                    <Run Text="{Binding Note}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Content="{loc:Tr BtnEditNote}" Classes="ghost-sm" Margin="6,0"
+                                                    Command="{Binding $parent[UserControl].((vm:PerformanceTelemetryViewModel)DataContext).EditNoteCommand}"
+                                                    CommandParameter="{Binding}" />
+                                            <Button Grid.Column="2" Content="{loc:Tr BtnDelete}" Classes="ghost-sm"
+                                                    Command="{Binding $parent[UserControl].((vm:PerformanceTelemetryViewModel)DataContext).DeleteRecordCommand}"
+                                                    CommandParameter="{Binding}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
+            <!-- ⑦ 数据诊断 -->
+            <TabItem Header="{loc:Tr TabDiagnostics}">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Spacing="10">
+                        <Border Classes="card">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{loc:Tr DiagDriveRecHeader}" Classes="section-header" />
+                                <WrapPanel>
+                                    <Button Content="{loc:Tr BtnStartRec}" Classes="primary" Command="{Binding StartDriveRecordingCommand}"
+                                            IsEnabled="{Binding CanStartDriveRecording}" Margin="0,0,8,0" />
+                                    <Button Content="{loc:Tr BtnStopSave}" Classes="ghost" Command="{Binding StopDriveRecordingCommand}"
+                                            IsEnabled="{Binding IsDriveRecording}" Margin="0,0,8,0" />
+                                    <Button Content="{loc:Tr BtnOpenRecDir}" Classes="ghost" Command="{Binding OpenDriveRecordingFolderCommand}" />
+                                </WrapPanel>
+                                <TextBlock Text="{Binding DriveRecordingStatus}" TextWrapping="Wrap" />
+                                <TextBox Text="{Binding DriveRecordingFolder, Mode=OneWay}" IsReadOnly="True"
+                                         AutomationProperties.Name="{loc:Tr AutoRecDir}"
+                                         IsVisible="{Binding DriveRecordingFolder, Converter={x:Static converters:StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{loc:Tr DiagStatusHeader}" Classes="section-header" />
+                                <TextBlock Text="{Binding DiagnosticsText}" TextWrapping="Wrap" FontFamily="Consolas, Microsoft YaHei UI, Yu Gothic UI, Malgun Gothic, monospace" FontSize="12" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="{loc:Tr BtnExportDiag}" Classes="ghost-sm" Command="{Binding CopyDiagnosticsCommand}" />
+                                    <Button Content="{loc:Tr BtnClearCounters}" Classes="ghost-sm" Command="{Binding ClearDiagnosticsCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{loc:Tr DiagTroubleshootHeader}" Classes="section-header" />
+                                <TextBlock Text="{Binding DiagnosticsDetail}" TextWrapping="Wrap" Classes="subtle" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ⑧ 模块设置 -->
+            <TabItem Header="{loc:Tr TabSettings}">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Spacing="10">
+                        <Border Classes="card">
+                            <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Tr SetListenAddr}" Classes="dim" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SettingsAddress}" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="{loc:Tr SetListenPort}" Classes="dim" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding SettingsPort}" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Tr SetSpeedUnit}" Classes="dim" VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="1" Grid.Column="1" SelectedItem="{Binding SettingsSpeedUnit}" HorizontalAlignment="Stretch">
+                                    <ComboBoxItem Content="km/h" /><ComboBoxItem Content="mph" /><ComboBoxItem Content="m/s" />
+                                </ComboBox>
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="{loc:Tr SetPowerUnit}" Classes="dim" VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="1" Grid.Column="3" SelectedItem="{Binding SettingsPowerUnit}" HorizontalAlignment="Stretch">
+                                    <ComboBoxItem Content="kW" /><ComboBoxItem Content="hp" /><ComboBoxItem Content="PS" />
+                                </ComboBox>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Tr SetTorqueUnit}" Classes="dim" VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="2" Grid.Column="1" SelectedItem="{Binding SettingsTorqueUnit}" HorizontalAlignment="Stretch">
+                                    <ComboBoxItem Content="N·m" /><ComboBoxItem Content="lb-ft" />
+                                </ComboBox>
+                                <TextBlock Grid.Row="2" Grid.Column="2" Text="{loc:Tr SetRefreshHz}" Classes="dim" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding SettingsRefreshHz}" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="{loc:Tr SetSmoothing}" Classes="dim" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding SettingsSmoothing}" />
+                                <TextBlock Grid.Row="3" Grid.Column="2" Text="{loc:Tr SetMaxTestSec}" Classes="dim" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="3" Grid.Column="3" Text="{Binding SettingsMaxTestSeconds}" />
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="{loc:Tr SetAutoSave}" Classes="dim" VerticalAlignment="Center" />
+                                <CheckBox Grid.Row="4" Grid.Column="1" IsChecked="{Binding SettingsAutoSave}" />
+                                <TextBlock Grid.Row="4" Grid.Column="2" Text="{loc:Tr SetStorePath}" Classes="dim" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="4" Grid.Column="3" Text="{Binding SettingsStorePath}" Classes="dim" TextWrapping="Wrap" />
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="{loc:Tr SetLang}" Classes="dim" VerticalAlignment="Center" />
+                                <ComboBox x:Name="SettingsLanguagePicker" Grid.Row="5" Grid.Column="1"
+                                          ItemsSource="{Binding LanguageOptions}" SelectedIndex="{Binding SelectedLanguageIndex, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch" AutomationProperties.Name="{loc:Tr AutoLanguage}" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="card">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{loc:Tr RetHeader}" Classes="h3" />
+                                <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="6">
+                                    <TextBlock Text="{loc:Tr RetPreset}" Classes="subtle" VerticalAlignment="Center" />
+                                    <ComboBox x:Name="RetentionPresetPicker" Grid.Column="1" SelectedIndex="{Binding SettingsRetentionPresetIndex, Mode=TwoWay}"
+                                              HorizontalAlignment="Stretch" AutomationProperties.Name="{loc:Tr AutoRetPreset}">
+                                        <ComboBoxItem Content="{loc:Tr RetPerfMax}" />
+                                        <ComboBoxItem Content="{loc:Tr RetPerf}" />
+                                        <ComboBoxItem Content="{loc:Tr RetBalanced}" />
+                                        <ComboBoxItem Content="{loc:Tr RetDetail}" />
+                                        <ComboBoxItem Content="{loc:Tr RetCustom}" />
+                                    </ComboBox>
+                                    <TextBlock Grid.Column="2" Text="{loc:Tr RetInterval}" Classes="subtle" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="3" Text="{Binding SettingsCleanupInterval}" AutomationProperties.Name="{loc:Tr AutoRetInterval}" />
+                                    <TextBlock Grid.Row="1" Text="{loc:Tr RetSeconds}" Classes="subtle" VerticalAlignment="Center" />
+                                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SettingsRetentionSeconds}"
+                                             IsReadOnly="{Binding !IsCustomRetention}" AutomationProperties.Name="{loc:Tr AutoRetSeconds}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{loc:Tr RetFrames}" Classes="subtle" VerticalAlignment="Center" />
+                                    <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding SettingsRetentionFrames}"
+                                             IsReadOnly="{Binding !IsCustomRetention}" AutomationProperties.Name="{loc:Tr AutoRetFrames}" />
+                                    <CheckBox Grid.Row="2" Grid.ColumnSpan="2" Content="{loc:Tr RetCleanHist}" IsChecked="{Binding SettingsCleanHistory}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="2" Text="{loc:Tr RetHistDays}" Classes="subtle" VerticalAlignment="Center" />
+                                    <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding SettingsHistoryDays}" IsEnabled="{Binding SettingsCleanHistory}"
+                                             AutomationProperties.Name="{loc:Tr AutoRetDays}" />
+                                </Grid>
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="12" LineSpacing="6">
+                                    <Button x:Name="ClearLocalCacheButton" Content="{loc:Tr RetClearCache}" Classes="ghost"
+                                            Command="{Binding ClearLocalCacheCommand}" />
+                                    <CheckBox x:Name="AutoClearLocalCache" Content="{loc:Tr RetAutoClearCache}"
+                                              IsChecked="{Binding SettingsClearCache}" />
+                                </WrapPanel>
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Text="{loc:Tr RetClearCacheHint}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Text="{loc:Tr RetHint}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Text="{Binding RetentionStatus}"
+                                           IsVisible="{Binding RetentionStatus, Converter={x:Static converters:StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+                        </Border>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="{loc:Tr BtnSaveSettings}" Classes="primary" Command="{Binding SaveSettingsCommand}" />
+                            <Button Content="{loc:Tr BtnResetDefaults}" Classes="ghost" Command="{Binding ResetSettingsCommand}" />
+                            <TextBlock Text="{Binding SettingsStatus}" Classes="subtle" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Classes="hint" TextWrapping="Wrap"
+                                   Text="{loc:Tr SetHint}" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="{loc:Tr TabHudSettings}">
+                <controls:TelemetryHudSettingsView DataContext="{Binding Hud}" />
+            </TabItem>
+            <TabItem Header="{loc:Tr TabExperimental}">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Spacing="10">
+                        <Border Classes="card">
+                            <StackPanel Spacing="2" IsEnabled="{Binding !IsConnectingAutoShift}">
+                                <CheckBox Content="{loc:Tr ExpAdaptive}" IsChecked="{Binding AutoShiftAdaptiveMatching, Mode=TwoWay}" />
+                                <TextBlock Classes="hint" TextWrapping="Wrap" Margin="28,0,0,8"
+                                           Text="{loc:Tr ExpAdaptiveHint}" />
+                                <CheckBox Content="{loc:Tr ExpReengage}" IsChecked="{Binding AutoShiftProtectReengagement, Mode=TwoWay}" />
+                                <TextBlock Classes="hint" TextWrapping="Wrap" Margin="28,0,0,8"
+                                           Text="{loc:Tr ExpReengageHint}" />
+                                <CheckBox Content="{loc:Tr ExpDrift}" IsChecked="{Binding AutoShiftDriftMode, Mode=TwoWay}" />
+                                <TextBlock Classes="hint" TextWrapping="Wrap" Margin="28,0,0,8"
+                                           Text="{loc:Tr ExpDriftHint}" />
+                                <CheckBox Content="{loc:Tr ExpUpshiftGrip}" IsChecked="{Binding AutoShiftUpshiftGripProtection, Mode=TwoWay}" />
+                                <TextBlock Classes="hint" TextWrapping="Wrap" Margin="28,0,0,0"
+                                           Text="{loc:Tr ExpUpshiftGripHint}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card">
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="{loc:Tr TabDriveAssist}" Classes="section-header" />
+                                <ItemsControl ItemsSource="{Binding ExperimentalAssists}" ItemTemplate="{StaticResource DriveAssistOption}" />
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                    <TextBlock Text="{loc:Tr EcuTightTurnSpeedLimit}" Classes="dim" VerticalAlignment="Center" />
+                                    <Slider x:Name="TightTurnSpeedLimitSlider" Grid.Column="1" TickFrequency="1" IsSnapToTickEnabled="True"
+                                            Minimum="{x:Static telemetry:DriveAssistSettings.MinimumTightTurnSpeedKmh}"
+                                            Maximum="{x:Static telemetry:DriveAssistSettings.MaximumTightTurnSpeedKmh}"
+                                            Value="{Binding DriveAssistTightTurnSpeedLimit, Mode=TwoWay}"
+                                            AutomationProperties.Name="{loc:Tr EcuTightTurnSpeedLimit}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding DriveAssistTightTurnSpeedLimit, StringFormat='{}{0:0} km/h'}"
+                                               Classes="dim" VerticalAlignment="Center" />
+                                </Grid>
+                                <CheckBox x:Name="TightTurnAutoSpeed" Content="{loc:Tr EcuTightTurnAutoSpeed}"
+                                          IsChecked="{Binding DriveAssistLearnTightTurnSpeed, Mode=TwoWay}" />
+                                <TextBlock x:Name="TightTurnSpeedStatus" Text="{Binding DriveAssistTightTurnSpeedStatus}"
+                                           IsVisible="{Binding DriveAssistLearnTightTurnSpeed}" Classes="hint" TextWrapping="Wrap" Margin="27,0,0,0" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="{loc:Tr TabVirtualPad}">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Spacing="10">
+                        <Border Classes="card">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{loc:Tr VpCheckHeader}" Classes="h3" />
+                                <TextBlock Text="{loc:Tr VpCheckDistinguish}" Classes="subtle" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding PadSetupProfileText}" Classes="hint" TextWrapping="Wrap" />
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsEnabled="{Binding CanCheckShiftOutput}">
+                                    <TextBlock Text="{loc:Tr LabelOutputMode}" Classes="subtle" VerticalAlignment="Center" />
+                                    <ComboBox x:Name="SetupShiftOutputPicker" Grid.Column="1" SelectedIndex="{Binding AutoShiftModeIndex, Mode=TwoWay}"
+                                              HorizontalAlignment="Stretch" AutomationProperties.Name="{loc:Tr AutoOutputMode}">
+                                        <ComboBoxItem Content="{loc:Tr OutputModeRelay}" />
+                                        <ComboBoxItem Content="{loc:Tr OutputModeKeyboard}" />
+                                    </ComboBox>
+                                </Grid>
+                                <TextBlock Text="{loc:Tr VpCheckInstructions}" Classes="subtle" TextWrapping="Wrap" />
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="6">
+                                    <Button Content="{loc:Tr VpCheckStart}" Classes="primary" Command="{Binding CheckShiftOutputCommand}"
+                                            IsEnabled="{Binding CanCheckShiftOutput}" />
+                                    <Button Content="{loc:Tr VpCheckCancel}" Classes="ghost" Command="{Binding CheckShiftOutputCancelCommand}"
+                                            IsEnabled="{Binding IsCheckingShiftOutput}" />
+                                    <Button Content="{loc:Tr BtnDisconnectRelay}" Classes="ghost" Command="{Binding DisconnectGamepadRelayCommand}"
+                                            IsVisible="{Binding IsGamepadForwarding}" />
+                                </WrapPanel>
+                                <TextBlock Text="{Binding ShiftOutputCheckStatus}" Classes="h3" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"
+                                           IsVisible="{Binding ShiftOutputCheckStatus, Converter={x:Static converters:StringConverters.IsNotNullOrEmpty}}" />
+                                <TextBlock Text="{loc:Tr VpKeyboardSetup}" Classes="hint" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                <TextBlock TextWrapping="Wrap" VerticalAlignment="Center" Text="{loc:Tr VpIntro}" />
+                                <Button Grid.Column="1" Content="{loc:Tr BtnBackToAutoShift}" Classes="ghost" Command="{Binding NavigateToTabCommand}"
+                                        CommandParameter="{x:Static vm:TelemetryTab.AutomaticShift}" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="card">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{loc:Tr VpStep1Title}" Classes="h3" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Text="{loc:Tr VpStep1Body}" />
+                                <WrapPanel>
+                                    <HyperlinkButton Content="{loc:Tr BtnDlVigem}" NavigateUri="https://github.com/nefarius/ViGEmBus/releases/latest" Margin="0,0,10,0" />
+                                    <HyperlinkButton Content="{loc:Tr BtnDlHidHide}" NavigateUri="https://github.com/nefarius/HidHide/releases/latest" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{loc:Tr VpStep2Title}" Classes="h3" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Text="{loc:Tr VpStep2Body}" />
+                                <TextBox x:Name="VirtualControllerRoutingPath" IsReadOnly="True" Text="{Binding AutoShiftRoutingPath, Mode=OneWay}"
+                                         PlaceholderText="{loc:Tr VpPhRouting}" AutomationProperties.Name="{loc:Tr AutoVpRouting}" />
+                                <TextBlock Classes="hint" TextWrapping="Wrap" Text="{loc:Tr VpStep2Hint}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{loc:Tr VpStep3Title}" Classes="h3" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Text="{loc:Tr VpStep3Body1}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Text="{loc:Tr VpStep3Body2}" />
+                                <HyperlinkButton Content="{loc:Tr BtnHidHideGuide}" NavigateUri="https://docs.nefarius.at/projects/HidHide/Simple-Setup-Guide/" HorizontalAlignment="Left" />
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{loc:Tr VpStep4Title}" Classes="h3" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Text="{loc:Tr VpStep4Body1}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Text="{loc:Tr VpStep4Body2}" />
+                                <UniformGrid Columns="4">
+                                    <TextBlock Text="{loc:Tr VpMapB}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{loc:Tr VpMapX}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{loc:Tr VpMapL3}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{loc:Tr VpMapRT}" FontWeight="SemiBold" />
+                                </UniformGrid>
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Text="{loc:Tr VpStep4Body3}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{loc:Tr VpStep5Title}" Classes="h3" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Text="{loc:Tr VpStep5Body1}" />
+                                <HyperlinkButton Content="{loc:Tr BtnXboxGuide}" NavigateUri="https://docs.nefarius.at/projects/HidHide/CLI-Usage/#hiding-xbox-xinput-controllers" HorizontalAlignment="Left" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Text="{loc:Tr VpStep5Body2}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>

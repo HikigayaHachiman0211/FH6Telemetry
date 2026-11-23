@@ -1,0 +1,142 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:FH6Telemetry.ViewModels"
+             xmlns:app="using:FH6Telemetry"
+             xmlns:controls="using:FH6Telemetry.Views.Controls"
+             xmlns:loc="using:FH6Telemetry.Views"
+             xmlns:converters="using:Avalonia.Data.Converters"
+             x:Class="FH6Telemetry.Views.Controls.TelemetryHudSettingsView"
+             x:DataType="vm:TelemetryHudViewModel">
+    <UserControl.Styles>
+        <Style Selector="Slider">
+            <Setter Property="MinHeight" Value="38" />
+            <Setter Property="Height" Value="38" />
+        </Style>
+        <Style Selector="Button.ghost-sm">
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="12">
+            <Border Classes="card" Padding="14,10">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                    <StackPanel VerticalAlignment="Center" Spacing="3">
+                        <TextBlock Text="{loc:Tr HudHeaderHint}" Classes="subtle" TextWrapping="Wrap" />
+                        <TextBlock Text="{loc:Tr HudUnsavedChanges}" IsVisible="{Binding HasChanges}" Foreground="#FFB565" FontSize="11" />
+                        <TextBlock Text="{Binding SaveStatus}" Classes="hint" TextWrapping="Wrap"
+                                   IsVisible="{Binding SaveStatus, Converter={x:Static converters:StringConverters.IsNotNullOrEmpty}}"
+                                   AutomationProperties.LiveSetting="Polite" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button Content="{loc:Tr BtnRestoreDefaults}" Classes="ghost" Command="{Binding RestoreDefaultsCommand}" />
+                        <Button Content="{loc:Tr BtnSaveHud}" Classes="primary" Command="{Binding SaveCommand}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid ColumnDefinitions="1.2*,*" ColumnSpacing="12">
+                <Border Classes="card">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="{loc:Tr HudPosCardHeader}" Classes="h3" />
+                        <ComboBox x:Name="DisplayPicker" ItemsSource="{Binding Displays}" SelectedItem="{Binding SelectedDisplay, Mode=TwoWay}"
+                                  HorizontalAlignment="Stretch" AutomationProperties.Name="{loc:Tr AutoHudDisplay}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:TelemetryHudDisplay">
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <TextBlock Text="{loc:Tr HudPosDragHint}" Classes="subtle" TextWrapping="Wrap" />
+                        <Grid x:Name="MapFrame" Height="176" SizeChanged="OnMapSizeChanged">
+                            <Canvas x:Name="ScreenMap" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                    Background="#0C1422" ClipToBounds="True" Cursor="SizeAll"
+                                    PointerPressed="OnMapPressed" PointerMoved="OnMapMoved"
+                                    PointerReleased="OnMapReleased" PointerCaptureLost="OnMapCaptureLost">
+                                <Border x:Name="MapOutline" BorderBrush="#405775" BorderThickness="1"
+                                        Background="Transparent" IsHitTestVisible="False" />
+                                <Border x:Name="MapMarker" BorderBrush="#FFB565" BorderThickness="1" CornerRadius="4"
+                                        Background="#4B3B31" IsHitTestVisible="False">
+                                    <TextBlock Text="{loc:Tr HudLabel}" Foreground="#FFCF9E" FontWeight="Bold" FontSize="9"
+                                               TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                            </Canvas>
+                        </Grid>
+                        <Grid ColumnDefinitions="Auto,*,44" RowDefinitions="Auto,Auto" ColumnSpacing="8">
+                            <TextBlock Text="{loc:Tr HudHorizPos}" MinWidth="72" VerticalAlignment="Center" Classes="subtle" />
+                            <Slider Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Value="{Binding HorizontalPercent, Mode=TwoWay}" AutomationProperties.Name="{loc:Tr AutoHudHoriz}" />
+                            <TextBlock Grid.Column="2" Text="{Binding HorizontalPercent, StringFormat='{}{0:0}%'}"
+                                       VerticalAlignment="Center" HorizontalAlignment="Right" Classes="subtle" />
+                            <TextBlock Grid.Row="1" Text="{loc:Tr HudVertPos}" MinWidth="72" VerticalAlignment="Center" Classes="subtle" />
+                            <Slider Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Value="{Binding VerticalPercent, Mode=TwoWay}" AutomationProperties.Name="{loc:Tr AutoHudVert}" />
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding VerticalPercent, StringFormat='{}{0:0}%'}"
+                                       VerticalAlignment="Center" HorizontalAlignment="Right" Classes="subtle" />
+                        </Grid>
+                        <UniformGrid Columns="3" ColumnSpacing="6" RowSpacing="6">
+                            <Button Content="{loc:Tr BtnTopLeft}" Classes="ghost-sm" HorizontalAlignment="Stretch" Command="{Binding PlaceAtCommand}" CommandParameter="TopLeft" />
+                            <Button Content="{loc:Tr BtnCenter}" Classes="ghost-sm" HorizontalAlignment="Stretch" Command="{Binding PlaceAtCommand}" CommandParameter="Center" />
+                            <Button Content="{loc:Tr BtnTopRight}" Classes="ghost-sm" HorizontalAlignment="Stretch" Command="{Binding PlaceAtCommand}" CommandParameter="TopRight" />
+                            <Button Content="{loc:Tr BtnBottomLeft}" Classes="ghost-sm" HorizontalAlignment="Stretch" Command="{Binding PlaceAtCommand}" CommandParameter="BottomLeft" />
+                            <Button Content="{loc:Tr BtnBottomCenter}" Classes="ghost-sm" HorizontalAlignment="Stretch" Command="{Binding PlaceAtCommand}" CommandParameter="BottomCenter" />
+                            <Button Content="{loc:Tr BtnBottomRight}" Classes="ghost-sm" HorizontalAlignment="Stretch" Command="{Binding PlaceAtCommand}" CommandParameter="BottomRight" />
+                        </UniformGrid>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Classes="card">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="{loc:Tr HudAppearCardHeader}" Classes="h3" />
+                        <Grid ColumnDefinitions="Auto,*,44" RowDefinitions="Auto,Auto" ColumnSpacing="8">
+                            <TextBlock Text="{loc:Tr HudSize}" MinWidth="72" VerticalAlignment="Center" Classes="subtle" />
+                            <Slider Grid.Column="1" Minimum="{x:Static app:TelemetryHudOptions.MinimumScale}"
+                                    Maximum="{x:Static app:TelemetryHudOptions.MaximumScale}" TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Value="{Binding ScalePercent, Mode=TwoWay}" AutomationProperties.Name="{loc:Tr AutoHudSize}" />
+                            <TextBlock Grid.Column="2" Text="{Binding ScalePercent, StringFormat='{}{0:0}%'}"
+                                       VerticalAlignment="Center" HorizontalAlignment="Right" Classes="subtle" />
+                            <TextBlock Grid.Row="1" Text="{loc:Tr HudOpacity}" MinWidth="72" VerticalAlignment="Center" Classes="subtle" />
+                            <Slider Grid.Row="1" Grid.Column="1" Minimum="{x:Static app:TelemetryHudOptions.MinimumOpacity}" Maximum="100"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Value="{Binding OpacityPercent, Mode=TwoWay}" AutomationProperties.Name="{loc:Tr AutoHudOpacity}"
+                                    ToolTip.Tip="{loc:Tr TipHudOpacity}" />
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding OpacityPercent, StringFormat='{}{0:0}%'}"
+                                       VerticalAlignment="Center" HorizontalAlignment="Right" Classes="subtle" />
+                        </Grid>
+                        <UniformGrid Columns="2">
+                            <CheckBox Content="{loc:Tr HudShowSpeed}" IsChecked="{Binding ShowSpeed, Mode=TwoWay}" />
+                            <CheckBox Content="{loc:Tr HudShowGear}" IsChecked="{Binding ShowGear, Mode=TwoWay}" />
+                            <CheckBox Content="{loc:Tr HudShowRpm}" IsChecked="{Binding ShowRpm, Mode=TwoWay}" />
+                            <CheckBox Content="{loc:Tr HudShowPedals}" IsChecked="{Binding ShowPedals, Mode=TwoWay}" />
+                            <CheckBox Content="{loc:Tr HudShowShiftHint}" IsEnabled="{Binding ShowGear}" IsChecked="{Binding ShowShiftHint, Mode=TwoWay}" />
+                            <CheckBox Content="{loc:Tr HudShowDetails}" IsChecked="{Binding ShowTelemetryDetails, Mode=TwoWay}"
+                                      ToolTip.Tip="{loc:Tr TipHudDetails}" />
+                            <CheckBox Content="{loc:Tr HudShowProtections}" IsChecked="{Binding ShowProtectionStatus, Mode=TwoWay}"
+                                      ToolTip.Tip="{loc:Tr TipHudProtections}" />
+                            <CheckBox Content="{loc:Tr HudShowAutoShift}" IsChecked="{Binding ShowAutoShiftStatus, Mode=TwoWay}" />
+                            <CheckBox Content="{loc:Tr HudShowVehicleIdentity}" IsChecked="{Binding ShowVehicleIdentity, Mode=TwoWay}" />
+                            <CheckBox Content="{loc:Tr HudShowDriveAssist}" IsChecked="{Binding ShowDriveAssistStatus, Mode=TwoWay}" />
+                            <CheckBox x:Name="HudLearnedTightTurnSpeedToggle" Content="{loc:Tr HudShowLearnedTightTurnSpeed}"
+                                      IsChecked="{Binding ShowLearnedTightTurnSpeed, Mode=TwoWay}" />
+                            <CheckBox x:Name="HudTextOutlineToggle" Content="{loc:Tr HudShowTextOutline}" IsChecked="{Binding EnableTextOutline, Mode=TwoWay}"
+                                      ToolTip.Tip="{loc:Tr TipHudTextOutline}" />
+                        </UniformGrid>
+                        <TextBlock Text="{loc:Tr HudPreviewHeader}" Classes="subtle" />
+                        <Border MinHeight="162" Padding="8" BorderBrush="#2B3D56" BorderThickness="1" CornerRadius="6">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                                    <GradientStop Color="#667D99" Offset="0" />
+                                    <GradientStop Color="#3B506B" Offset="0.52" />
+                                    <GradientStop Color="#1F2D40" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                 <Viewbox Width="{Binding PreviewWidth}" Height="{Binding ExamplePreviewHeight}">
+                                     <controls:TelemetryHudPanel x:Name="ExamplePanel" Readings="{Binding Example}" Height="{Binding ExamplePanelHeight}" />
+                                </Viewbox>
+                            </Viewbox>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

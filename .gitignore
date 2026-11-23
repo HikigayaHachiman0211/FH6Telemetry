@@ -1,0 +1,21 @@
+# .NET and local build outputs
+bin/
+obj/
+publish/
+artifacts/
+.vs/
+.cache/
+__pycache__/
+*.user
+*.suo
+
+# Local settings, controller pairing and recordings
+Data/
+telemetry/
+updates/
+.fh6-telemetry-runtime/
+telemetry-settings.json
+speed-gear-profiles.json
+fh6-hidhide.json*
+*.jsonl
+*.jsonl.gz

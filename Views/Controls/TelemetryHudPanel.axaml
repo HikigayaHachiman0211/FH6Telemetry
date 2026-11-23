@@ -1,0 +1,201 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:FH6Telemetry.ViewModels"
+             xmlns:controls="using:FH6Telemetry.Views.Controls"
+             xmlns:loc="using:FH6Telemetry.Views"
+             x:Class="FH6Telemetry.Views.Controls.TelemetryHudPanel"
+             x:DataType="vm:TelemetryHudViewModel"
+             FontFamily="{loc:LocFont}"
+             x:Name="Panel" Foreground="#F5F8FF" Width="{Binding PanelWidth}" Height="{Binding PanelHeight}">
+    <Grid>
+        <Border x:Name="HudPanelBackdrop" Background="#121B2A" BorderBrush="#3B506C" BorderThickness="1"
+                Opacity="{Binding OpacityFactor}" />
+        <Grid Margin="15,8" RowDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto">
+            <Border IsVisible="{Binding ShowVehicleIdentity}">
+                <Grid IsVisible="{Binding #Panel.Readings.HasData}" ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,4">
+                    <controls:OutlinedTextBlock x:Name="HudVehicleName" Text="{Binding #Panel.Readings.VehicleName}" FontSize="12"
+                                                FontWeight="SemiBold" TextTrimming="CharacterEllipsis" IsOutlineEnabled="{Binding EnableTextOutline}" />
+                    <controls:OutlinedTextBlock x:Name="HudVehiclePi" Grid.Column="1" Text="{Binding #Panel.Readings.PerformanceIndexText}"
+                                                FontSize="11" Foreground="#B4C7DE" VerticalAlignment="Center" IsOutlineEnabled="{Binding EnableTextOutline}" />
+                </Grid>
+            </Border>
+            <Grid Grid.Row="1" IsVisible="{Binding #Panel.Readings.HasData}">
+                <StackPanel Orientation="Horizontal" Spacing="11" HorizontalAlignment="Center"
+                            IsVisible="{Binding HasVisibleReadings}">
+                    <StackPanel IsVisible="{Binding ShowSpeed}" Width="{x:Static vm:TelemetryHudViewModel.SpeedWidth}"
+                                VerticalAlignment="Center" Spacing="2">
+                        <controls:OutlinedTextBlock Text="{loc:Tr HudLblSpeed}" FontSize="11" Foreground="#B4C7DE"
+                                                    IsOutlineEnabled="{Binding EnableTextOutline}" />
+                        <controls:OutlinedTextBlock x:Name="HudSpeed" Text="{Binding #Panel.Readings.Speed}" FontSize="20" FontWeight="SemiBold"
+                                                    TextTrimming="CharacterEllipsis" IsOutlineEnabled="{Binding EnableTextOutline}" />
+                    </StackPanel>
+                    <Grid IsVisible="{Binding ShowGear}" Width="{x:Static vm:TelemetryHudViewModel.GearWidth}">
+                        <Border BorderThickness="1,0,1,0" BorderBrush="#34455D" Opacity="{Binding OpacityFactor}" />
+                        <Grid Margin="1,0" RowDefinitions="15,*,15">
+                            <controls:OutlinedTextBlock Text="{loc:Tr HudLblGear}" FontSize="11" Foreground="#B4C7DE" HorizontalAlignment="Center"
+                                                        IsOutlineEnabled="{Binding EnableTextOutline}" />
+                            <controls:OutlinedTextBlock x:Name="HudGear" Grid.Row="1" Text="{Binding #Panel.Readings.Gear}" FontSize="25"
+                                                        FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                        IsOutlineEnabled="{Binding EnableTextOutline}" />
+                            <controls:OutlinedTextBlock x:Name="HudShiftHint" Grid.Row="2" Text="{Binding #Panel.Readings.ShiftHint}"
+                                                        IsVisible="{Binding ShowShiftHint}" Foreground="#FFB86B" FontSize="11"
+                                                        FontWeight="SemiBold" HorizontalAlignment="Center"
+                                                        IsOutlineEnabled="{Binding EnableTextOutline}" />
+                        </Grid>
+                    </Grid>
+                    <StackPanel IsVisible="{Binding ShowRpm}" Width="{x:Static vm:TelemetryHudViewModel.RpmWidth}"
+                                VerticalAlignment="Center" Spacing="3">
+                        <controls:OutlinedTextBlock Text="{loc:Tr HudLblRpm}" FontSize="11" Foreground="#B4C7DE"
+                                                    IsOutlineEnabled="{Binding EnableTextOutline}" />
+                        <controls:OutlinedTextBlock x:Name="HudRpm" Text="{Binding #Panel.Readings.Rpm}" FontSize="18" FontWeight="SemiBold"
+                                                    IsOutlineEnabled="{Binding EnableTextOutline}" />
+                        <ProgressBar Value="{Binding #Panel.Readings.RpmValue}" Maximum="{Binding #Panel.Readings.RpmLimit}"
+                                     Foreground="{Binding #Panel.Readings.RpmBarBrush}" Background="{Binding RpmTrackBrush}"
+                                     Height="4" MinHeight="0" MinWidth="0" />
+                    </StackPanel>
+                    <Grid x:Name="HudPedals" IsVisible="{Binding ShowPedals}" Width="{x:Static vm:TelemetryHudViewModel.PedalsWidth}"
+                          VerticalAlignment="Center" ColumnDefinitions="*,*" ColumnSpacing="4">
+                        <StackPanel Grid.Column="0" HorizontalAlignment="Center" Spacing="1">
+                            <Border Width="4" Height="2" CornerRadius="1,1,0,0" Background="{Binding SurfaceBorderBrush}" HorizontalAlignment="Center" />
+                            <Border Width="10" Height="38" CornerRadius="2" BorderBrush="{Binding SurfaceBorderBrush}" BorderThickness="1"
+                                    Background="{Binding SurfaceTrackBrush}" Padding="1" HorizontalAlignment="Center">
+                                <Border x:Name="HudBrakeBar" Background="#FF5468" CornerRadius="1" VerticalAlignment="Bottom"
+                                        Height="{Binding #Panel.Readings.BrakeBarHeight}" />
+                            </Border>
+                            <controls:OutlinedTextBlock x:Name="HudBrakePercent" Text="{Binding #Panel.Readings.BrakePercentText}"
+                                                        FontSize="9.5" Foreground="#FF9AA6" HorizontalAlignment="Center"
+                                                        IsOutlineEnabled="{Binding EnableTextOutline}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" HorizontalAlignment="Center" Spacing="1">
+                            <Border Width="4" Height="2" CornerRadius="1,1,0,0" Background="{Binding SurfaceBorderBrush}" HorizontalAlignment="Center" />
+                            <Border Width="10" Height="38" CornerRadius="2" BorderBrush="{Binding SurfaceBorderBrush}" BorderThickness="1"
+                                    Background="{Binding SurfaceTrackBrush}" Padding="1" HorizontalAlignment="Center">
+                                <Border x:Name="HudThrottleBar" Background="#3DDC84" CornerRadius="1" VerticalAlignment="Bottom"
+                                        Height="{Binding #Panel.Readings.ThrottleBarHeight}" />
+                            </Border>
+                            <controls:OutlinedTextBlock x:Name="HudThrottlePercent" Text="{Binding #Panel.Readings.ThrottlePercentText}"
+                                                        FontSize="9.5" Foreground="#7AF2B0" HorizontalAlignment="Center"
+                                                        IsOutlineEnabled="{Binding EnableTextOutline}" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+                <controls:OutlinedTextBlock Text="{loc:Tr HudPromptSelectContent}" IsVisible="{Binding !HasVisibleReadings}"
+                                            Foreground="#B4C7DE" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            IsOutlineEnabled="{Binding EnableTextOutline}" />
+            </Grid>
+            <controls:OutlinedTextBlock Grid.Row="1" Text="{Binding #Panel.Readings.Status}" IsVisible="{Binding !#Panel.Readings.HasData}"
+                                        Foreground="#B4C7DE" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        IsOutlineEnabled="{Binding EnableTextOutline}" />
+            <Border x:Name="HudDetailRow" Grid.Row="2" IsVisible="{Binding ShowTelemetryDetails}" Margin="0,2,0,0">
+                <Grid RowDefinitions="1,Auto">
+                    <Border Grid.Row="0" Background="#253449" Opacity="{Binding OpacityFactor}" />
+                    <Grid Grid.Row="1" IsVisible="{Binding #Panel.Readings.HasData}" Margin="0,3,0,0"
+                          RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6" RowSpacing="4">
+                        <Grid Width="36" Height="6" Background="{Binding SurfaceTrackBrush}" VerticalAlignment="Center" ColumnDefinitions="*,1,*">
+                            <Border Grid.Column="0" HorizontalAlignment="Right" Width="{Binding #Panel.Readings.SteerLeftWidth}"
+                                    Background="#4ADAF4" CornerRadius="1,0,0,1" />
+                            <Border Grid.Column="1" Background="{Binding SurfaceBorderBrush}" />
+                            <Border Grid.Column="2" HorizontalAlignment="Left" Width="{Binding #Panel.Readings.SteerRightWidth}"
+                                    Background="#4ADAF4" CornerRadius="0,1,1,0" />
+                        </Grid>
+                        <controls:OutlinedTextBlock x:Name="HudDetailText" Grid.Column="1" Text="{Binding #Panel.Readings.DetailText}"
+                                                    FontSize="10" Foreground="#B4C7DE" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                    TextTrimming="CharacterEllipsis" IsOutlineEnabled="{Binding EnableTextOutline}" />
+                        <Border Grid.Column="2" IsVisible="{Binding #Panel.Readings.HasIntentBadge}" VerticalAlignment="Center">
+                            <Grid>
+                                <Border Background="#21344D" BorderBrush="#3F5C7E" BorderThickness="1" CornerRadius="3"
+                                        Opacity="{Binding OpacityFactor}" />
+                                <controls:OutlinedTextBlock x:Name="HudIntentBadge" Text="{Binding #Panel.Readings.IntentBadge}"
+                                                            Margin="5,1" FontSize="9.5" FontWeight="SemiBold" Foreground="#8CE6FF"
+                                                            IsOutlineEnabled="{Binding EnableTextOutline}" />
+                            </Grid>
+                        </Border>
+                        <controls:OutlinedTextBlock x:Name="HudPowertrainText" Grid.Row="1" Grid.ColumnSpan="3" Text="{Binding #Panel.Readings.PowertrainText}"
+                                                    FontSize="10" Foreground="#B4C7DE" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                    IsOutlineEnabled="{Binding EnableTextOutline}" />
+                    </Grid>
+                </Grid>
+            </Border>
+            <Border x:Name="HudProtectionRow" Grid.Row="3" IsVisible="{Binding ShowProtectionStatus}" Margin="0,3,0,0">
+                <Grid RowDefinitions="1,Auto">
+                    <Border Grid.Row="0" Background="#253449" Opacity="{Binding OpacityFactor}" />
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" Margin="0,4,0,0">
+                        <Border x:Name="HudLaunchProtectionBadge">
+                            <Grid>
+                                <Border CornerRadius="3" BorderThickness="1" Opacity="{Binding OpacityFactor}"
+                                        Background="{Binding #Panel.Readings.Protections.LaunchBackground}"
+                                        BorderBrush="{Binding #Panel.Readings.Protections.LaunchBorder}" />
+                                <controls:OutlinedTextBlock Text="{loc:Tr HudProtLaunch}" Margin="6,2" FontSize="9.5" FontWeight="SemiBold"
+                                                            Foreground="{Binding #Panel.Readings.Protections.LaunchForeground}"
+                                                            IsOutlineEnabled="{Binding EnableTextOutline}" />
+                            </Grid>
+                        </Border>
+                        <Border x:Name="HudAirborneProtectionBadge">
+                            <Grid>
+                                <Border CornerRadius="3" BorderThickness="1" Opacity="{Binding OpacityFactor}"
+                                        Background="{Binding #Panel.Readings.Protections.AirborneBackground}"
+                                        BorderBrush="{Binding #Panel.Readings.Protections.AirborneBorder}" />
+                                <controls:OutlinedTextBlock Text="{loc:Tr HudProtAirborne}" Margin="6,2" FontSize="9.5" FontWeight="SemiBold"
+                                                            Foreground="{Binding #Panel.Readings.Protections.AirborneForeground}"
+                                                            IsOutlineEnabled="{Binding EnableTextOutline}" />
+                            </Grid>
+                        </Border>
+                        <Border x:Name="HudUpshiftGripProtectionBadge">
+                            <Grid>
+                                <Border CornerRadius="3" BorderThickness="1" Opacity="{Binding OpacityFactor}"
+                                        Background="{Binding #Panel.Readings.Protections.UpshiftGripBackground}"
+                                        BorderBrush="{Binding #Panel.Readings.Protections.UpshiftGripBorder}" />
+                                <controls:OutlinedTextBlock Text="{loc:Tr HudProtUpshiftGrip}" Margin="6,2" FontSize="9.5" FontWeight="SemiBold"
+                                                            Foreground="{Binding #Panel.Readings.Protections.UpshiftGripForeground}"
+                                                            IsOutlineEnabled="{Binding EnableTextOutline}" />
+                            </Grid>
+                        </Border>
+                        <Border x:Name="HudReengagementProtectionBadge">
+                            <Grid>
+                                <Border CornerRadius="3" BorderThickness="1" Opacity="{Binding OpacityFactor}"
+                                        Background="{Binding #Panel.Readings.Protections.ReengagementBackground}"
+                                        BorderBrush="{Binding #Panel.Readings.Protections.ReengagementBorder}" />
+                                <controls:OutlinedTextBlock Text="{loc:Tr HudProtReengagement}" Margin="6,2" FontSize="9.5" FontWeight="SemiBold"
+                                                            Foreground="{Binding #Panel.Readings.Protections.ReengagementForeground}"
+                                                            IsOutlineEnabled="{Binding EnableTextOutline}" />
+                            </Grid>
+                        </Border>
+                        <Border x:Name="HudDynamicProtectionBadge" IsVisible="{Binding #Panel.Readings.Protections.HasDynamicAlert}">
+                            <Grid>
+                                <Border CornerRadius="3" BorderThickness="1" Opacity="{Binding OpacityFactor}"
+                                        Background="{Binding #Panel.Readings.Protections.AlertBackground}"
+                                        BorderBrush="{Binding #Panel.Readings.Protections.AlertBorder}" />
+                                <controls:OutlinedTextBlock x:Name="HudDynamicProtectionText" Text="{Binding #Panel.Readings.Protections.DynamicAlert}"
+                                                            Margin="6,2" FontSize="9.5" FontWeight="SemiBold"
+                                                            Foreground="{Binding #Panel.Readings.Protections.AlertForeground}"
+                                                            IsOutlineEnabled="{Binding EnableTextOutline}" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <Grid Grid.Row="4" IsVisible="{Binding ShowAutoShiftStatus}" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <controls:OutlinedTextBlock x:Name="HudAutoShiftStatus" Text="{Binding #Panel.Readings.AutomaticShiftStatus}"
+                                            FontSize="11" FontWeight="SemiBold" Foreground="#80D8ED" TextTrimming="CharacterEllipsis"
+                                            IsOutlineEnabled="{Binding EnableTextOutline}" />
+                <controls:OutlinedTextBlock x:Name="HudAutoShiftShortcut" Grid.Column="1" Text="{Binding AutoShiftShortcutText}"
+                                            FontSize="11" Foreground="#B4C7DE" TextTrimming="CharacterEllipsis" MaxWidth="160"
+                                            IsOutlineEnabled="{Binding EnableTextOutline}" />
+            </Grid>
+            <controls:OutlinedTextBlock x:Name="HudTransmissionStatus" Grid.Row="5" IsVisible="{Binding ShowTransmissionStatus}"
+                                        Text="{Binding TransmissionStatus}" TextAlignment="Center" TextTrimming="CharacterEllipsis"
+                                        Margin="0,3,0,0" FontSize="11" FontWeight="SemiBold" Foreground="#C6ECF5"
+                                        IsOutlineEnabled="{Binding EnableTextOutline}" />
+            <controls:OutlinedTextBlock x:Name="HudDriveAssistStatus" Grid.Row="6" IsVisible="{Binding ShowDriveAssistStatus}"
+                                        Text="{Binding #Panel.Readings.DriveAssistStatus}" TextTrimming="CharacterEllipsis"
+                                        FontSize="11" FontWeight="SemiBold" Foreground="#C6ECF5" Margin="0,2,0,0"
+                                        IsOutlineEnabled="{Binding EnableTextOutline}" />
+            <Border Grid.Row="7" IsVisible="{Binding ShowLearnedTightTurnSpeed}">
+                <controls:OutlinedTextBlock x:Name="HudLearnedTightTurnSpeed" IsVisible="{Binding #Panel.Readings.HasLearnedTightTurnSpeed}"
+                                            Text="{Binding #Panel.Readings.LearnedTightTurnSpeedText}" TextTrimming="CharacterEllipsis"
+                                            FontSize="11" FontWeight="SemiBold" Foreground="#80D8ED" Margin="0,2,0,0"
+                                            IsOutlineEnabled="{Binding EnableTextOutline}" />
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

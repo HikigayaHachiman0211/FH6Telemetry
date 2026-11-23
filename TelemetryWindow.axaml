@@ -1,0 +1,18 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:FH6Telemetry.Views"
+        xmlns:app="using:FH6Telemetry"
+        xmlns:loc="using:FH6Telemetry.Views"
+        x:Class="FH6Telemetry.TelemetryWindow"
+        Title="{loc:Tr AppTitle}"
+        FontFamily="{loc:LocFont}"
+        Icon="/Assets/FH6Telemetry.png"
+        Width="1080" Height="740" MinWidth="860" MinHeight="600"
+        WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <TabItem x:Key="AboutTab" Header="{loc:Tr TabAbout}">
+            <app:AboutView />
+        </TabItem>
+    </Window.Resources>
+    <views:PerformanceTelemetryView />
+</Window>

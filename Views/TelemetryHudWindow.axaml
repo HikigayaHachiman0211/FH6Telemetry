@@ -1,0 +1,17 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:FH6Telemetry.ViewModels"
+        xmlns:controls="using:FH6Telemetry.Views.Controls"
+        xmlns:loc="using:FH6Telemetry.Views"
+        x:Class="FH6Telemetry.Views.TelemetryHudWindow"
+        x:DataType="vm:TelemetryHudViewModel"
+        Title="{loc:Tr HudWindowTitle}" Width="368" Height="80"
+        FontFamily="{loc:LocFont}"
+        WindowDecorations="None" CanResize="False" ShowInTaskbar="False"
+        ShowActivated="False" Focusable="False" Topmost="True"
+        TransparencyLevelHint="Transparent" TransparencyBackgroundFallback="Transparent"
+        Background="Transparent" Foreground="#F5F8FF" UseLayoutRounding="True">
+    <Viewbox Stretch="Uniform">
+        <controls:TelemetryHudPanel Readings="{Binding Live}" IsHitTestVisible="False" />
+    </Viewbox>
+</Window>

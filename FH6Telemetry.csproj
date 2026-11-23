@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PlatformTarget>x64</PlatformTarget>
+    <SelfContained>true</SelfContained>
+    <DebugType>embedded</DebugType>
+    <Nullable>enable</Nullable>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets/FH6Telemetry.ico</ApplicationIcon>
+    <AssemblyName>FH6Telemetry</AssemblyName>
+    <RootNamespace>FH6Telemetry</RootNamespace>
+    <Title>FH6 遥测助手</Title>
+    <Product>FH6 遥测助手</Product>
+    <Description>FH6 Data Out 实时遥测、车辆性能实测和手柄自动换挡</Description>
+    <Version>1.0.0</Version>
+    <GitHubRepository>HikigayaHachiman0211/FH6Telemetry</GitHubRepository>
+    <NeutralLanguage>zh-CN</NeutralLanguage>
+    <DefaultItemExcludes>$(DefaultItemExcludes);Tests\**;publish\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="GitHubRepository" Value="$(GitHubRepository)" Condition="'$(GitHubRepository)' != ''" />
+    <InternalsVisibleTo Include="FH6Telemetry.Tests" />
+    <AvaloniaResource Include="Assets/FH6Telemetry.png" />
+    <EmbeddedResource Include="ThirdPartyNotices.txt" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.2" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Nefarius.ViGEm.Client" Version="1.21.256" />
+  </ItemGroup>
+</Project>
