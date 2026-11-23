@@ -42,6 +42,7 @@
                     <Border Height="1" Background="{DynamicResource CardBorder}" />
                     <WrapPanel ItemSpacing="8" LineSpacing="4" IsEnabled="{Binding HasRepository}">
                         <HyperlinkButton Content="{loc:Tr AboutProject}" NavigateUri="{Binding ProjectPage}" />
+                        <HyperlinkButton x:Name="AboutGuideLink" Content="{loc:Tr AboutUserGuide}" NavigateUri="{Binding UserGuidePage}" />
                         <HyperlinkButton Content="{loc:Tr AboutChangelog}" NavigateUri="{Binding ReleasesPage}" />
                         <HyperlinkButton Content="{loc:Tr AboutLatest}" NavigateUri="{Binding LatestReleasePage}" />
                     </WrapPanel>

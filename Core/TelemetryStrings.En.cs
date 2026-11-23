@@ -359,6 +359,7 @@ public static partial class TelemetryText
         ["AboutAutoDownload"] = "Download updates automatically",
         ["AboutAutoDownloadHint"] = "Check GitHub on startup and save new versions to the updates folder.",
         ["AboutProject"] = "Project home",
+        ["AboutUserGuide"] = "User guide",
         ["AboutChangelog"] = "Release notes",
         ["AboutLatest"] = "Latest release",
         ["AboutStarPrompt"] = "If this tool helped you, consider giving it a star on GitHub.",

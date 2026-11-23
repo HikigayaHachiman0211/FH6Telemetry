@@ -1,5 +1,7 @@
 # FH6 遥测助手
 
+**简体中文** · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
+
 FH6 Telemetry 是面向《极限竞速：地平线 6》的 Windows x64 独立辅助工具。它接收游戏的官方 Data Out 遥测，在桌面和游戏 HUD 中显示车速、挡位、转速、踏板与车身状态。你可以用它实测车辆、回看行驶记录，或在离线练习中试用自动换挡和驾驶辅助。 [Forza Data Out 说明](https://support.forza.net/hc/en-us/articles/51744149102611-Forza-Horizon-6-Data-Out-Documentation)
 
 **[下载最新版 FH6Telemetry.exe](https://github.com/HikigayaHachiman0211/FH6Telemetry/releases/latest/download/FH6Telemetry.exe)** · **[玩家运行指南](docs/user-guide.md)** · **[Agent 部署指南](docs/fh6-telemetry-agent-setup.md)**

@@ -1,5 +1,7 @@
 # 玩家运行指南
 
+**简体中文** · [English](en/user-guide.md) · [日本語](ja/user-guide.md) · [한국어](ko/user-guide.md)
+
 ## 第一次运行
 
 1. 把 `FH6Telemetry.exe` 放在可以写入的目录，双击打开。HUD 随窗口显示，可在左上角开关。 [下载 Windows x64 版](https://github.com/HikigayaHachiman0211/FH6Telemetry/releases/latest/download/FH6Telemetry.exe)
@@ -38,6 +40,8 @@
 在「数据诊断 → 行驶记录」开始录制，结束后保存。可在「快捷键」分别配置开始和停止录制。在「驾驶辅助 → 离线回放与历史路线」载入记录，对照实体输入、实录输出和当前设置重算的候选输出。早期记录缺少实体输入时仍可查看遥测。回放计算沿用记录中的车辆轨迹，不能替代实际试跑。
 
 助手通常把本地设置和记录放在 `%APPDATA%\FH6Telemetry`。如果标准配置尚未建立，而启动器旁已有 `Data\telemetry-settings.json`，会使用该便携配置。可从「历史记录」打开实际目录。升级前先备份你使用的数据目录。请把公开分享的诊断资料限于复现所需片段。 [数据结构和导出](performance-telemetry.md#四数据存储与导出)
+
+「关于」页可打开项目主页、与助手界面语言对应的使用指南和最新发布。「检查更新」会查询 GitHub。开启自动下载后，新版保存到更新文件夹，可在「关于」页打开。
 
 ## 常见问题
 

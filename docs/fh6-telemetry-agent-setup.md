@@ -1,5 +1,7 @@
 # FH6 遥测助手 Agent 部署指南
 
+**简体中文** · [English](en/agent-deployment.md) · [日本語](ja/agent-deployment.md) · [한국어](ko/agent-deployment.md)
+
 适用环境是运行 FH6 的 Windows x64 桌面。本指南从取得运行包开始，覆盖源码构建、配置、输入链路验证、采样排错、升级和发布。以下命令默认在独立仓库根目录运行。 [给玩家的运行指南](user-guide.md)
 
 ## 选择交付范围

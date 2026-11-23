@@ -506,7 +506,11 @@ public partial class PerformanceTelemetryViewModel : ObservableObject, IDisposab
         if (string.Equals(HistoryVehicleFilter, previousAllVehicles, StringComparison.Ordinal))
             HistoryVehicleFilter = _allVehiclesLabel;
 
-        Hud.Live = Hud.Live with { IntentBadge = "" };
+        Hud.Live = Hud.Live with
+        {
+            IntentBadge = "",
+            Status = IsListening && HasData ? Hud.Live.Status : TelemetryText.Get("HudWaitingTelemetry"),
+        };
         _previousShiftSnapshot = null;
         RefreshAutoShift();
 

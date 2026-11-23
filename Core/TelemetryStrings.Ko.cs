@@ -359,6 +359,7 @@ public static partial class TelemetryText
         ["AboutAutoDownload"] = "업데이트 자동 다운로드",
         ["AboutAutoDownloadHint"] = "시작할 때 GitHub를 확인하고 새 버전을 업데이트 폴더에 저장합니다.",
         ["AboutProject"] = "프로젝트 홈",
+        ["AboutUserGuide"] = "사용 가이드",
         ["AboutChangelog"] = "릴리스 노트",
         ["AboutLatest"] = "최신 릴리스",
         ["AboutStarPrompt"] = "이 도구가 도움이 되었다면 GitHub에서 스타를 눌러 주세요.",

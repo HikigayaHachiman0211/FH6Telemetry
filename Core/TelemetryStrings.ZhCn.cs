@@ -359,6 +359,7 @@ public static partial class TelemetryText
         ["AboutAutoDownload"] = "自动下载更新",
         ["AboutAutoDownloadHint"] = "启动时检查 GitHub，将新版保存到更新文件夹。",
         ["AboutProject"] = "项目主页",
+        ["AboutUserGuide"] = "使用指南",
         ["AboutChangelog"] = "更新日志",
         ["AboutLatest"] = "最新发布",
         ["AboutStarPrompt"] = "如果这个工具帮到了你，欢迎在 GitHub 点个 Star。",

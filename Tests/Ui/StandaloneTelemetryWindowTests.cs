@@ -1203,11 +1203,19 @@ internal static class StandaloneTelemetryWindowTests
         var page = (AboutView)tab.Content!;
         var about = (AboutViewModel)page.DataContext!;
         Check(page.IsEffectivelyVisible && about.VersionText.StartsWith('v'), "关于页应显示独立程序版本");
+        var guideLink = page.FindControl<HyperlinkButton>("AboutGuideLink");
         if (!about.HasRepository)
         {
             Check(!about.CheckForUpdatesCommand.CanExecute(null) && page.GetVisualDescendants().OfType<HyperlinkButton>()
                 .All(link => link.NavigateUri is null && !link.IsEffectivelyEnabled || !link.IsEffectivelyVisible),
                 "仓库留空时，检查更新和项目链接应停用");
+        }
+        else
+        {
+            Check(about.CheckForUpdatesCommand.CanExecute(null) &&
+                  guideLink is { IsEffectivelyEnabled: true, NavigateUri: { } guide } &&
+                  guide == new Uri($"{about.ProjectPage}/blob/HEAD/docs/user-guide.md"),
+                "配置仓库后，关于页应开放检查更新并链接中文使用指南");
         }
 
         Capture(window, "standalone-about.png");
@@ -1217,6 +1225,18 @@ internal static class StandaloneTelemetryWindowTests
         window.Width = window.MinWidth;
         window.Height = window.MinHeight;
         Capture(window, "standalone-about-en-minimum.png");
+        if (about.HasRepository)
+        {
+            foreach (var (language, locale) in new[] { (TelemetryLanguage.En, "en"), (TelemetryLanguage.Ja, "ja"), (TelemetryLanguage.Ko, "ko") })
+            {
+                model.SelectedLanguageIndex = (int)language;
+                Check(model.Hud.Live.Status == TelemetryText.Get("HudWaitingTelemetry"),
+                    $"切换语言后，应立即翻译等待遥测的 HUD 状态。当前状态 {model.Hud.Live.Status}");
+                Dispatcher.UIThread.RunJobs();
+                Check(guideLink!.NavigateUri == new Uri($"{about.ProjectPage}/blob/HEAD/docs/{locale}/user-guide.md"),
+                    "关于页的使用指南链接应随应用语言切换");
+            }
+        }
         window.Width = 1080;
         window.Height = 740;
         model.SelectedLanguageIndex = (int)TelemetryLanguage.ZhCn;

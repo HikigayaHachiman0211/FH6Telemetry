@@ -39,6 +39,15 @@ internal sealed partial class AboutViewModel : ObservableObject, IDisposable
 
     public string VersionText { get; }
     public Uri? ProjectPage => _updates.ProjectPage;
+    public Uri? UserGuidePage
+    {
+        get
+        {
+            var language = TelemetryText.CurrentLanguage;
+            var folder = language == TelemetryLanguage.ZhCn ? "" : TelemetryText.ToCode(language) + "/";
+            return ProjectPage is { } project ? new Uri($"{project}/blob/HEAD/docs/{folder}user-guide.md") : null;
+        }
+    }
     public Uri? ReleasesPage => _updates.ReleasesPage;
     public Uri? LatestReleasePage => _updates.LatestReleasePage;
     public bool HasRepository => ProjectPage is not null;
@@ -145,7 +154,11 @@ internal sealed partial class AboutViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(UpdateStatus));
     }
 
-    private void OnLanguageChanged(TelemetryLanguage language) => OnPropertyChanged(nameof(UpdateStatus));
+    private void OnLanguageChanged(TelemetryLanguage language)
+    {
+        OnPropertyChanged(nameof(UpdateStatus));
+        OnPropertyChanged(nameof(UserGuidePage));
+    }
 
     public void Dispose()
     {

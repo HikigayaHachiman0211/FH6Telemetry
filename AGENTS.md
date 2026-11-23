@@ -2,6 +2,8 @@
 
 本仓库根目录就是独立的 FH6 遥测助手工程。首次接手、打包、配置手柄或排查真实游戏时，从 [完整部署指南](docs/fh6-telemetry-agent-setup.md) 开始。玩家入口见 [运行指南](docs/user-guide.md)。
 
+部署指南 / Deployment guide · [简体中文](docs/fh6-telemetry-agent-setup.md) · [English](docs/en/agent-deployment.md) · [日本語](docs/ja/agent-deployment.md) · [한국어](docs/ko/agent-deployment.md)
+
 - `Core/` 处理 Data Out、换挡、驾驶辅助、记录与回放。`Input/` 处理 Windows 输入和虚拟手柄转发。
 - `ViewModels/`、`Views/` 和 `Core/TelemetryStrings.*.cs` 负责界面、HUD 和四种语言。
 - `Tests/` 包含核心与无界面测试。`Packaging/Launcher.cpp` 和 `pack-exe.ps1` 负责 Windows x64 单文件包。
