@@ -337,6 +337,55 @@ internal static class GamepadShiftInputTests
             catch (OperationCanceledException) { }
             Check(pad.Disposed && pad.Reports.IsEmpty, "取消后不可保留迟到的虚拟设备");
         });
+
+        run("手柄换挡：离合升挡压油并在死区外线性恢复，制动或免离合立即退让", () =>
+        {
+            var pad = new TestGamepad();
+            var physical = new ShiftGamepadReport(0, 255, LeftX: 2000);
+            var deviceCreated = false;
+            ShiftGamepadReport? Read(int slot) => slot switch
+            {
+                0 => physical,
+                1 when deviceCreated => default(ShiftGamepadReport),
+                _ => null,
+            };
+            var clock = new ManualClock();
+            using var input = new GamepadShiftInput(
+                () => IsolatedGamepadRelay.Connect(Read, () => deviceCreated ? 2 : 0, _ => { deviceCreated = true; return pad; }),
+                () => true, () => false, clock);
+            var settings = new AutomaticShiftSettings { GamepadMode = GamepadShiftMode.Combination, AutomaticClutch = true, PressDurationMs = 95 };
+            Check(input.ConnectAsync(settings, CancellationToken.None).GetAwaiter().GetResult() is null, "应连接实体转发");
+
+            var plan = new ShiftTorquePlan(UpshiftPulseCeiling: 0, UpshiftEngageFloor: 115, UpshiftRestoreMs: 80);
+            Check(input.TryShift(ShiftDirection.Up, settings, null, plan) == ShiftInputResult.Sent, "应发出带降扭计划的离合升挡");
+            Check(pad.Reports.Last() == physical with { Buttons = 0x2040, RightTrigger = 0 }, "踩离合脉冲期间应压住油门");
+
+            clock.Advance(settings.PressDurationMs + 8);
+            Check(pad.Reports.Last().Buttons == 0 && pad.Reports.Last().RightTrigger >= 115,
+                "松开组合键后恢复起点须高于游戏虚拟手柄空闲死区");
+
+            clock.Advance(40);
+            var mid = pad.Reports.Last().RightTrigger;
+            Check(mid is >= 115 and < 255, "接合适应期间油门应位于线性回升曲线");
+
+            clock.Advance(56);
+            Check(pad.Reports.Last().RightTrigger == 255, "恢复窗口结束后应还满油门");
+
+            clock.Advance(30);
+            Check(input.TryShift(ShiftDirection.Up, settings, null, plan) == ShiftInputResult.Sent, "准备第二次测试刹车中断");
+            clock.Advance(settings.PressDurationMs + 8);
+            physical = physical with { LeftTrigger = 80 };
+            clock.Advance(8);
+            Check(pad.Reports.Last().LeftTrigger == 80 && pad.Reports.Last().RightTrigger == 255,
+                "玩家介入刹车时应立即终止升挡限扭");
+
+            physical = new(0, 255, LeftX: 2000);
+            clock.Advance(100);
+            var clutchless = settings with { AutomaticClutch = false };
+            Check(input.TryShift(ShiftDirection.Up, clutchless, null, null) == ShiftInputResult.Sent &&
+                  pad.Reports.Last() == physical with { Buttons = 0x2000 },
+                "免离合升挡不得额外收油或添加离合");
+        });
     }
 
     private static void Connect(GamepadShiftInput input)

@@ -58,9 +58,9 @@ internal static class StandaloneTelemetryWindowTests
                       assistChecks.All(check => check.IsChecked == false) && !model.IsDriveAssistArmed && !model.CanConnectDriveAssist,
                     "驾驶辅助应有独立标签页，全部功能默认为关");
                 Check(ecu.GetVisualDescendants().OfType<TextBlock>().Any(text => text.IsEffectivelyVisible &&
-                      text.Text is { } notice && notice.Contains("实验性功能") && notice.Contains("仍在开发") &&
-                      notice.Contains("稳定性和圈速") && notice.Contains("游戏自带")),
-                    "接通前应能看到实验状态和与游戏自带辅助的差距提示");
+                      text.Text is { } notice && notice.Contains("暂未开发完成") && notice.Contains("不如游戏内置的官方辅助") &&
+                      notice.Contains("圈速") && notice.Contains("操控手感")),
+                    "接通前应能看到未完成、效果差距以及圈速和操控手感的提示");
                 Check(ecu.GetVisualDescendants().OfType<TextBlock>().Count(text => text.DataContext is DriveAssistOption option &&
                        text.Text == option.Description && text.Text.Length > 10 && text.Text != "EcuDesc" + option.Feature) == assistChecks.Length,
                     "每项辅助应显示一段直接可读的解释");

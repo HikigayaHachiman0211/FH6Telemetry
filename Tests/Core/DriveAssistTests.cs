@@ -827,6 +827,92 @@ internal static class DriveAssistTests
             Check(result.DriveAssist is { Seconds: > 0.07 and <= 0.10 } log && log.Shares.Single().Feature == DriveAssistFeature.Traction,
                 "成绩应有本段测试期间的 ECU 介入记录");
         });
+
+        run("驾驶辅助：高抓地赛车四轮均匀推头不误触反打，真甩尾立即救车", () =>
+        {
+            var drive = new Drive(DriveAssistFeature.CounterSteer | DriveAssistFeature.Stability |
+                DriveAssistFeature.Understeer | DriveAssistFeature.TightTurnSteering);
+            var pad = new ShiftGamepadReport(0, 220, LeftX: short.MaxValue);
+            var push = Frame() with
+            {
+                CarPerformanceIndex = 988, SpeedKmh = 140, VelocityZ = 38.5, VelocityX = -5.2,
+                AccelerationX = 16.2, AngularVelocityY = 0.65,
+                FrontLeft = Wheel(angle: 1.05, combined: 1.15), FrontRight = Wheel(angle: 1.12, combined: 1.22),
+                RearLeft = Wheel(angle: 0.92, combined: 1.0), RearRight = Wheel(angle: 0.98, combined: 1.05),
+            };
+            var pushOut = drive.Repeat(push, pad, 20, 240);
+            Check(pushOut.LeftX > 20000 && !drive.Controller.Active.HasFlag(DriveAssistFeature.CounterSteer),
+                "高抓地四轮中性推头不能误触发反打把车顶向弯外");
+
+            var slide = push with
+            {
+                VelocityX = -15, AngularVelocityY = 1.4,
+                RearLeft = Wheel(angle: 1.45, combined: 1.6), RearRight = Wheel(angle: 1.40, combined: 1.55),
+            };
+            var rescue = drive.Repeat(slide, pad, 260, 420);
+            Check(rescue.LeftX < 0 && drive.Controller.Active.HasFlag(DriveAssistFeature.CounterSteer),
+                "真正甩尾失控时仍能迅速反打救车");
+        });
+
+        run("低速急弯：带刹循迹入弯压路肩仍可学出高抓上限并保留转向", () =>
+        {
+            var drive = new Drive();
+            drive.Controller.Configure(new()
+            {
+                Features = DriveAssistFeature.Understeer | DriveAssistFeature.TightTurnSteering,
+                LearnTightTurnSpeed = true,
+            });
+            var pad = new ShiftGamepadReport(0, 0, LeftTrigger: 128, LeftX: short.MaxValue);
+            var corner = TightTurnProbe(96) with
+            {
+                CarPerformanceIndex = 988, AccelerationX = 2.15 * TelemetryDerived.Gravity,
+                AngularVelocityY = 2.15 * TelemetryDerived.Gravity / (96 / 3.6), Brake = 0.50,
+                FrontLeft = new WheelSample(0, 0.65, 1.32, 95, true, 0.08, 0.02, 0.04, 0.42, 85),
+                FrontRight = Wheel(angle: 0.95, combined: 1.35, rotation: 90),
+            };
+            var straight = corner with { AccelerationX = 0, AngularVelocityY = 0, Brake = 0 };
+            for (var turn = 0; turn < 3; turn++)
+            {
+                var t0 = 20 + turn * 700;
+                drive.Repeat(corner, pad, t0, t0 + 480);
+                drive.Repeat(straight, default, t0 + 500, t0 + 680);
+            }
+            var learnedLimit = drive.Controller.Snapshot(2200, armed: true, includeReports: false).LearnedTightTurnSpeedKmh;
+            Check(learnedLimit is > 90 and <= 105 && DriveAssistSettings.MaximumTightTurnSpeedKmh == 90,
+                "带刹压路肩的高抓急弯应学会高于 90 的上限且保留原界面滑块范围");
+            var retained = drive.Repeat(corner, pad, 2220, 2400);
+            Check(retained.LeftX == pad.LeftX, "循迹带刹时应继续保留完整急弯转向");
+        });
+
+        run("驾驶辅助：弯中限扭低负载不抢油、回正快还油，且不阻塞车辆学习", () =>
+        {
+            var gameTcs = new Drive();
+            gameTcs.Controller.Configure(new()
+            {
+                UseGameTractionControl = true,
+                Features = DriveAssistFeature.CornerTraction,
+            });
+            var gas = new ShiftGamepadReport(0, 255, LeftX: 14000);
+            var cleanTurn = Frame() with { CarPerformanceIndex = 988, AccelerationX = 6.2, AngularVelocityY = 0.30 };
+            Check(gameTcs.Repeat(cleanTurn, gas, 20, 200).RightTrigger == 255,
+                "抓地远未饱和的干净过弯不应白白限扭");
+
+            var learnDrive = new Drive();
+            learnDrive.Controller.Configure(new()
+            {
+                Features = DriveAssistFeature.SteeringTuning | DriveAssistFeature.Damper | DriveAssistFeature.VehicleLearning,
+                SteeringDeadzonePercent = 0,
+                SteeringDebounceMs = 0,
+            });
+            var leftPad = new ShiftGamepadReport(0, 120, LeftX: (short)Math.Round(-0.35 * 32767));
+            var rightPad = leftPad with { LeftX = (short)Math.Round(0.35 * 32767) };
+            var left = Frame() with { SpeedKmh = 108, VelocityZ = 30, AccelerationX = -4.4, AngularVelocityY = -0.45, Steer = -0.35 };
+            var right = Frame() with { SpeedKmh = 108, VelocityZ = 30, AccelerationX = 4.4, AngularVelocityY = 0.24, Steer = 0.35 };
+            learnDrive.Repeat(left, leftPad, 20, 740);
+            learnDrive.Repeat(right, rightPad, 760, 1480);
+            Check(learnDrive.Controller.LateralStatus.SteeringGain.HasValue,
+                "开启阻尼和转向微调时仍应正常完成左右转向响应学习");
+        });
     }
 
     private sealed class Drive(DriveAssistFeature features = DriveAssistFeature.None, bool skidpad = false, bool fahrenheit = false)

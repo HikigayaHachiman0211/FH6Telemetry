@@ -25,6 +25,7 @@ internal sealed record DriveAssistSettings
     public const ulong FeatureMask = (1UL << FeatureCount) - 1;
     public const double MinimumTightTurnSpeedKmh = 20;
     public const double MaximumTightTurnSpeedKmh = 90;
+    public const double MaximumLearnedTightTurnSpeedKmh = 105;
     public const int DefaultTightTurnSpeedKmh = 54;
     private const DriveAssistFeature GameAbsConflicts = DriveAssistFeature.Abs | DriveAssistFeature.AdaptiveBraking |
         DriveAssistFeature.TrailBrake | DriveAssistFeature.HillStart | DriveAssistFeature.Cruise | DriveAssistFeature.Slipper;
@@ -109,8 +110,10 @@ internal sealed class DriveAssistEstimator
     private TelemetrySample? _previous;
     private double _yaw, _steer, _lateral, _verticalBaseline, _travelBaseline, _airSeconds, _landingAge;
     private double _yawDirection = 1, _yawEvidence, _cornerExitTime;
-    private double _slideEvidence, _slideHold;
+    private double _slideEvidence, _slideHold, _peakLateralG;
     private bool _knownContact, _airborne, _landing;
+
+    public double EffectiveLateralGripG { get; private set; } = 1.25;
 
     internal static bool IsValid(TelemetrySample s, bool shiftingThroughNeutral = false)
     {
@@ -141,6 +144,8 @@ internal sealed class DriveAssistEstimator
         Array.Clear(_rollingRadius);
         _yawDirection = 1;
         _yawEvidence = 0;
+        _peakLateralG = 0;
+        EffectiveLateralGripG = 1.25;
     }
 
     public DriveAssistState Update(TelemetrySample sample, DriveAssistDriver driver, DriveAssistProfile profile, double dt,
@@ -177,12 +182,6 @@ internal sealed class DriveAssistEstimator
         var lateralTrend = old is null ? 0 : (_lateral - previousLateral) / dt;
         var steerRise = old is null ? 0 : (Math.Abs(driver.Steer) - _steer) / dt;
         _steer = Math.Abs(driver.Steer);
-
-        var steerAngle = driver.Steer * 0.54;
-        var understeerSpeed = 11 - (profile.FrontWeight - 0.5) * 3;
-        var expected = speed * Math.Tan(steerAngle) / (profile.Wheelbase * (1 + Math.Pow(speed / understeerSpeed, 2)));
-        var maximumYaw = 1.25 * TelemetryDerived.Gravity / Math.Max(5, speed);
-        expected = Math.Clamp(expected, -maximumYaw, maximumYaw);
 
         var maxTravel = 0.0;
         var meanTravel = 0.0;
@@ -298,9 +297,32 @@ internal sealed class DriveAssistEstimator
             _travelBaseline += Math.Min(1, dt * 2) * (meanTravel - _travelBaseline);
         }
 
+        var piGrip = sample.CarPerformanceIndex > 0
+            ? Math.Clamp(0.95 + Math.Max(0, sample.CarPerformanceIndex - 500) * 0.0011 + Math.Max(0, sample.CarPerformanceIndex - 750) * 0.0022, 0.95, 2.05)
+            : 1.18;
+        if (allowLearning && !_airborne && !_landing && speed > 10 && maxTravel > 0.12 &&
+            lateral is > 0.45 and < 2.65 && Math.Abs(beta) < 0.24 && rearAngle < 1.05 && Math.Abs(yaw) > 0.12)
+        {
+            _peakLateralG = _peakLateralG <= 0
+                ? lateral
+                : lateral > _peakLateralG
+                    ? _peakLateralG + Math.Min(1, dt * 1.4) * (lateral - _peakLateralG)
+                    : _peakLateralG + dt * 0.02 * (lateral - _peakLateralG);
+        }
+        EffectiveLateralGripG = Math.Clamp(
+            Math.Max(piGrip, _peakLateralG > 0 ? Math.Max(_peakLateralG * 0.96, piGrip) : piGrip) * thermalScale,
+            0.90, 2.50);
+
+        var gripScale = Math.Sqrt(Math.Clamp(EffectiveLateralGripG / 1.25, 0.72, 2.0));
+        var steerAngle = driver.Steer * 0.54;
+        var understeerSpeed = 13.0 * gripScale - (profile.FrontWeight - 0.5) * 3;
+        var expected = speed * Math.Tan(steerAngle) / (profile.Wheelbase * (1 + Math.Pow(speed / understeerSpeed, 2)));
+        var maximumYaw = Math.Max(1.25, EffectiveLateralGripG * 1.12) * TelemetryDerived.Gravity / Math.Max(5, speed);
+        expected = Math.Clamp(expected, -maximumYaw, maximumYaw);
+
         var bump = Math.Max(Unit((maxBump - 0.58) / 0.35), Unit((maxTravel - 0.92) / 0.10));
         var rescuing = !_airborne && !_landing && speed > 4.8 && sample.VelocityZ > 0.4 &&
-            ObserveBodySlide(beta, old, yaw, expected, insideRearAngle, rearAngle, frontAngle, dt);
+            ObserveBodySlide(beta, old, yaw, expected, insideRearAngle, rearAngle, frontAngle, driver.Steer, drivenWheelOverrun, dt);
         if (_airborne || _landing || speed <= 4.8 || sample.VelocityZ <= 0.4) _slideEvidence = _slideHold = 0;
         if (lateral > 0.42 || driver.Brake > 0.14) _cornerExitTime = 0.6;
         else _cornerExitTime = Math.Max(0, _cornerExitTime - dt);
@@ -318,24 +340,26 @@ internal sealed class DriveAssistEstimator
     }
 
     private bool ObserveBodySlide(double beta, TelemetrySample? previous, double yaw, double expected,
-        double insideRearAngle, double rearAngle, double frontAngle, double dt)
+        double insideRearAngle, double rearAngle, double frontAngle, double steer, bool drivenOverrun, double dt)
     {
         var angle = Math.Abs(beta);
         var previousAngle = previous is null ? angle : Math.Abs(Math.Atan2(previous.VelocityX, Math.Max(1.5, previous.VelocityZ)));
         var growing = angle - previousAngle > 0.35 * dt;
         var rotationAway = yaw * beta < 0 && Math.Abs(yaw) >= 0.20;
         var rearMean = (rearAngle + insideRearAngle) * 0.5;
+        var committedTurnIn = Math.Abs(steer) > 0.30 && Math.Abs(yaw) >= 0.08 && Math.Sign(yaw) == Math.Sign(steer);
+        var frontPushing = committedTurnIn && frontAngle >= rearMean * 0.88 && angle < 0.30 && !drivenOverrun;
 
         // Body motion stays observable when the driver countersteers or the front tires saturate too.
-        var clearSlide = angle >= 0.22 && rearMean > 0.73 && insideRearAngle > 0.38 &&
+        var clearSlide = !frontPushing && angle >= 0.22 && rearMean > 0.73 && insideRearAngle > 0.38 &&
             (rotationAway || growing || angle >= 0.29);
-        var developing = angle > 0.105 && insideRearAngle > 0.47 && rearMean > 0.71 &&
+        var developing = !frontPushing && angle > 0.105 && insideRearAngle > 0.47 && rearMean > 0.71 &&
             (rearMean > frontAngle * 0.77 || angle >= 0.15) &&
             (growing && rotationAway || rotationAway && Math.Abs(yaw - expected) > 0.24);
-        _slideEvidence = developing ? Math.Min(0.15, _slideEvidence + dt) : Math.Max(0, _slideEvidence - 2 * dt);
-        var remainsSliding = _slideHold > 0 && angle > 0.13 && rearMean > 0.50;
-        _slideHold = clearSlide || _slideEvidence >= 0.045 || remainsSliding ? 0.15 : Math.Max(0, _slideHold - dt);
-        return _slideHold > 0;
+        _slideEvidence = developing ? Math.Min(0.15, _slideEvidence + dt) : Math.Max(0, _slideEvidence - (frontPushing ? 5 * dt : 2 * dt));
+        var remainsSliding = !frontPushing && _slideHold > 0 && angle > 0.13 && rearMean > 0.50;
+        _slideHold = clearSlide || _slideEvidence >= 0.045 || remainsSliding ? 0.15 : Math.Max(0, _slideHold - (frontPushing ? 5 * dt : dt));
+        return !frontPushing && _slideHold > 0;
     }
 
     internal static double Unit(double value) => Math.Clamp(value, 0, 1);

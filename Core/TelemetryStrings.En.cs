@@ -288,7 +288,7 @@ public static partial class TelemetryText
         ["EcuBestSteadyG"] = "Best sustained lateral G {0:0.00}",
         ["EcuArm"] = "Arm drive assist",
         ["EcuDisarm"] = "Disarm",
-        ["EcuExperimentalNotice"] = "Experimental feature under development. Vehicle stability and lap times may be worse than with the game's built-in driving assists.",
+        ["EcuExperimentalNotice"] = "Drive Assist is unfinished. It currently performs worse than the game's built-in driving assists. Enabling it may affect lap times and how the car feels to drive.",
         ["EcuHelp"] = "Apply a preset or select individual assists, then arm them. Requires Data Out and a configured virtual controller relay. Match the handbrake binding in game and use L3 for launch clutch. Holding the handbrake, reversing, or losing telemetry returns control to the player.",
         ["EcuDisarmed"] = "Drive assist is disarmed",
         ["EcuWaiting"] = "Armed · Waiting for live FH6 driving data in the foreground",

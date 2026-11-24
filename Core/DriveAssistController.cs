@@ -10,6 +10,9 @@ internal sealed class DriveAssistController(DriveAssistSettings initialSettings)
     private const int NeutralTransitionMs = 250;
     private const int ClutchLoadSettleMs = 45;
     private const int SessionSettleMs = 500;
+    private const DriveAssistFeature BenignCalibrationFlags =
+        DriveAssistFeature.SteeringTuning | DriveAssistFeature.Damper | DriveAssistFeature.Profiles |
+        DriveAssistFeature.Thermal | DriveAssistFeature.Feedback | DriveAssistFeature.TightTurnSteering;
     private readonly DriveAssistEstimator _estimator = new();
     private readonly DriveAssistArbitrator _arbitrator = new();
     private readonly DriveAssistCruise _cruise = new();
@@ -259,7 +262,7 @@ internal sealed class DriveAssistController(DriveAssistSettings initialSettings)
                 var launching = false;
                 if (!shiftingThroughNeutral)
                 {
-                    SuggestSteering(driver, collisionHold, ref demand);
+                    SuggestSteering(sample, driver, collisionHold, ref demand);
                     SuggestSurface(driver, ref demand);
                     var manualShift = (physical.Buttons & ShiftGamepadReport.ManualShiftButtons) != 0;
                     launching = !collisionHold && !hasHandbrake && !shifting && !manualShift && SuggestLaunch(sample, driver, ref demand);
@@ -270,9 +273,9 @@ internal sealed class DriveAssistController(DriveAssistSettings initialSettings)
                         recovering = SuggestRotationRecovery(driver, collisionHold, ref demand);
                     if (!collisionHold && !launching)
                     {
-                        if (!_settings.UseGameTractionControl) SuggestTraction(driver, drift, ref demand);
+                        if (!_settings.UseGameTractionControl) SuggestTraction(sample, driver, drift, ref demand);
                         else if (!hasHandbrake && !shifting && !shiftingThroughNeutral && shiftDirection is null && sample.Clutch < 0.08)
-                            SuggestCornerThrottle(driver, ref demand);
+                            SuggestCornerThrottle(sample, driver, ref demand);
                     }
                     if (!_settings.UseGameAbs) SuggestBraking(driver, ref demand);
                     if (!collisionHold && !shiftingThroughNeutral && !launching && !shifting && !hasHandbrake) SuggestSlipper(sample, driver, ref demand);
@@ -280,7 +283,7 @@ internal sealed class DriveAssistController(DriveAssistSettings initialSettings)
                 var advancedSettings = (_driftSuppressed || collisionHold) && !_lateral.DriftExiting
                     ? _settings with { Features = _settings.Features & ~DriveAssistFeature.DriftTransitions } : _settings;
                 if (!shiftingThroughNeutral)
-                    _lateral.Suggest(sample, driver, _state, _profile, advancedSettings, drift, Active == 0 && !collisionHold,
+                    _lateral.Suggest(sample, driver, _state, _profile, advancedSettings, drift, (Active & ~BenignCalibrationFlags) == 0 && !collisionHold,
                         ref demand, limitDrive: !collisionHold);
                 if (!collisionHold && !launching && !hasHandbrake)
                     _pedals.Suggest(sample, driver, _state, _profile, _settings, drift, shiftDirection, ref demand);
@@ -447,11 +450,13 @@ internal sealed class DriveAssistController(DriveAssistSettings initialSettings)
             _tightTurnLearning.Observe(driver, _state, frontOutside, frontLimit, stable && !shifting);
 
         var speedLimitKmh = LearnedTightTurnSpeedKmh ?? _settings.TightTurnSpeedLimitKmh;
+        var frontAllowance = frontLimit * 1.22;
+        var combinedAllowance = driver.Brake > 0.08 ? 1.55 : 1.25;
         if (!stable || _state.Speed < 3 || sample.SpeedKmh > speedLimitKmh || Math.Abs(driver.Steer) < 0.75 ||
             Math.Sign(driver.Steer) * _state.Yaw < -0.12 ||
-            Math.Abs(frontOutside.SlipAngle) >= frontLimit || Math.Abs(frontOutside.CombinedSlip) > 1.05)
+            Math.Abs(frontOutside.SlipAngle) >= frontAllowance || Math.Abs(frontOutside.CombinedSlip) > combinedAllowance)
         {
-            _tightTurnSteerTime = 0;
+            _tightTurnSteerTime = Math.Max(0, _tightTurnSteerTime - _state.Dt * 2.5);
             return false;
         }
 
@@ -460,7 +465,7 @@ internal sealed class DriveAssistController(DriveAssistSettings initialSettings)
         return _tightTurnSteerTime >= holdSeconds;
     }
 
-    private void SuggestSteering(DriveAssistDriver driver, bool collisionHold, ref DriveAssistDemands demand)
+    private void SuggestSteering(TelemetrySample sample, DriveAssistDriver driver, bool collisionHold, ref DriveAssistDemands demand)
     {
         var magnitude = Math.Abs(driver.Steer);
         if (Has(DriveAssistFeature.Damper))
@@ -470,9 +475,9 @@ internal sealed class DriveAssistController(DriveAssistSettings initialSettings)
             var strength = Math.Max(speed, load);
             if (strength > 0.04)
             {
-                var rate = 12 - 10 * strength;
-                var center = 1 - 0.68 * strength * _profile.CenterDamper * Math.Pow(1 - magnitude, 2);
-                demand.Steer(driver.Steer * center * (1 - 0.20 * load), strength, SteeringPriority.Damper,
+                var rate = 13.5 - 11.0 * strength;
+                var center = 1 - 0.56 * strength * _profile.CenterDamper * Math.Pow(1 - magnitude, 2);
+                demand.Steer(driver.Steer * center * (1 - 0.14 * load), strength, SteeringPriority.Damper,
                     WithModifiers(DriveAssistFeature.Damper, thermal: false, profile: true), rate);
             }
         }
@@ -484,16 +489,19 @@ internal sealed class DriveAssistController(DriveAssistSettings initialSettings)
         }
         var limit = _profile.FrontLimit * Math.Sqrt(_state.ThermalScale);
         var overPeak = Unit((_state.FrontAngle - limit) / 0.47);
-        var saturated = _state.SteerRise > 0.10 && _state.LateralTrend < 0.18 && _state.LateralG > 0.32 && _state.FrontCombined > 0.70;
+        var saturated = _state.FrontAngle > limit * 0.72 && _state.SteerRise > 0.10 && _state.LateralTrend < 0.18 && _state.LateralG > 0.32 && _state.FrontCombined > 0.70;
         var severity = Math.Max(overPeak, saturated ? Unit((_state.FrontCombined - 0.66) / 0.5) : 0);
-        _frontPressure = magnitude > 0.15 ? Math.Max(severity, _frontPressure - _state.Dt * 2.0) : 0;
+        _frontPressure = magnitude > 0.15 ? Math.Max(severity, _frontPressure - _state.Dt * 2.5) : 0;
         if (_frontPressure > 0.02)
         {
-            demand.Steer(driver.Steer * (1 - 0.61 * _frontPressure), _frontPressure, SteeringPriority.Understeer,
-                WithModifiers(DriveAssistFeature.Understeer, thermal: _state.ThermalScale < 0.99, profile: true), 8);
-            if (!_settings.UseGameTractionControl && Has(DriveAssistFeature.CornerTraction) &&
-                driver.Throttle > 0.12 && driver.Brake < 0.24)
-                demand.LimitThrottle(driver.Throttle * (1 - 0.24 * _frontPressure), DriveAssistFeature.CornerTraction);
+            // Keep at least 66-76% of driver steering so peak-seeking never straightens tight corners into walls.
+            var maxTrim = 0.34 - 0.08 * Unit((_state.Speed - 12) / 28);
+            demand.Steer(driver.Steer * (1 - maxTrim * _frontPressure), _frontPressure, SteeringPriority.Understeer,
+                WithModifiers(DriveAssistFeature.Understeer, thermal: _state.ThermalScale < 0.99, profile: true), 9);
+            if (Has(DriveAssistFeature.CornerTraction) && overPeak > 0.20 &&
+                _state.LateralG > 0.55 * Math.Max(1.05, _estimator.EffectiveLateralGripG) &&
+                driver.Throttle > 0.12 && driver.Brake < 0.24 && (sample.DrivetrainType is 0 or 2 || _state.LateralG > 0.75))
+                demand.LimitThrottle(driver.Throttle * (1 - 0.16 * (overPeak - 0.20) / 0.80), DriveAssistFeature.CornerTraction);
         }
     }
 
@@ -581,43 +589,64 @@ internal sealed class DriveAssistController(DriveAssistSettings initialSettings)
         return true;
     }
 
-    private void SuggestCornerThrottle(DriveAssistDriver driver, ref DriveAssistDemands demand)
+    private void SuggestCornerThrottle(TelemetrySample sample, DriveAssistDriver driver, ref DriveAssistDemands demand)
     {
         if (!Has(DriveAssistFeature.CornerTraction) || _state.Speed <= 6 || driver.Throttle <= 0.12 ||
             driver.Brake > 0.13 || driver.Clutch) return;
 
-        // Steering predicts turn-in before lateral load builds. Game TCS owns longitudinal wheel-slip correction.
         var steer = Math.Abs(driver.Steer);
-        var turn = Math.Max(Unit((steer - 0.04) / 0.12), Unit((Math.Abs(_state.Yaw) - 0.07) / 0.23));
-        var steeringLoad = Unit((steer - 0.15) / 0.65) * Unit((_state.Speed - 6) / 16);
-        var lateralLoad = Unit((_state.LateralG - 0.24) / 0.75) * turn;
-        var load = Math.Max(lateralLoad, 0.65 * steeringLoad);
-        if (load > 0)
-            demand.LimitThrottle(driver.Throttle * (1 - 0.35 * load * load), DriveAssistFeature.CornerTraction);
+        var gripCeiling = Math.Max(1.05, _estimator.EffectiveLateralGripG);
+        var lateralRatio = Unit((_state.LateralG / gripCeiling - 0.52) / 0.34);
+        var unwinding = _state.Phase == DriveAssistPhase.CornerExit && _state.LateralTrend < -0.18 &&
+            steer < 0.36 && _state.DrivenSlip < 0.55 && Math.Abs(_state.Beta) < 0.14;
+        var frontPush = Unit((_state.FrontAngle - _profile.FrontLimit * 0.96) / 0.45) * Unit((steer - 0.30) / 0.45);
+        var overRotate = Unit((_state.RearAngle - 0.78) / 0.52) * Unit((Math.Abs(_state.Beta) - 0.10) / 0.18);
+        var driveSlip = Unit((_state.DrivenSlip - 0.62) / 0.48) * Unit((lateralRatio - 0.15) / 0.45);
+        var slipDemand = sample.DrivetrainType switch
+        {
+            0 => Math.Max(driveSlip, frontPush * 0.72),
+            1 => Math.Max(driveSlip, overRotate * 0.90),
+            _ => Math.Max(driveSlip, Math.Max(overRotate * 0.70, frontPush * 0.50)),
+        };
+
+        // Keep throttle open below ~52% grip, apply only gentle apex stabilization, and restore immediately on unwind.
+        var preload = unwinding ? 0 : 0.11 * Math.Pow(lateralRatio * Unit((steer - 0.24) / 0.42), 1.5);
+        var cut = Math.Clamp(Math.Max(preload, 0.38 * slipDemand), 0, 0.40);
+        if (cut > 0.005)
+            demand.LimitThrottle(driver.Throttle * (1 - cut), DriveAssistFeature.CornerTraction,
+                cutRate: slipDemand > 0.35 ? 14 : 7);
+        else if (unwinding && _hasDecision && _decision.Throttle < driver.Throttle - 0.02)
+            demand.ThrottleRestoreRate = 4.2;
     }
 
-    private void SuggestTraction(DriveAssistDriver driver, bool drifting, ref DriveAssistDemands demand)
+    private void SuggestTraction(TelemetrySample sample, DriveAssistDriver driver, bool drifting, ref DriveAssistDemands demand)
     {
         var throttle = Math.Max(driver.Throttle, demand.Gas);
         var tcs = Has(DriveAssistFeature.Traction);
         var lowSpeedSpin = tcs && (_state.DrivenWheelOverrun || _tractionCut > 0);
         if ((_state.Speed < 1.6 && !lowSpeedSpin) || driver.Brake > 0.13 || throttle < 0.08) { ResetTraction(); return; }
-        var load = Unit(Math.Max(_state.LateralG / 1.23, Math.Max(_state.FrontAngle, _state.RearAngle) * 0.59));
-        var corner = Has(DriveAssistFeature.CornerTraction) && load > 0.27 && !drifting;
+        var gripCeiling = Math.Max(1.12, _estimator.EffectiveLateralGripG * 1.04);
+        var axleAngle = Math.Max(_state.FrontAngle, _state.RearAngle);
+        var load = Unit(Math.Max(_state.LateralG / gripCeiling, axleAngle * 0.56));
+        var corner = Has(DriveAssistFeature.CornerTraction) && load > 0.32 && !drifting;
         if (!tcs && !corner && _tractionCut <= 0) return;
-        var grip = corner ? Math.Max(0.43, Math.Sqrt(1 - load * load)) : 1;
+        var unwinding = _state.Phase == DriveAssistPhase.CornerExit && _state.LateralTrend < -0.15 &&
+            Math.Abs(driver.Steer) < 0.36 && _state.DrivenSlip < 0.70 && !_state.DrivenWheelOverrun;
+        var grip = corner && !unwinding ? Math.Max(0.60, Math.Sqrt(1 - 0.76 * load * load)) : 1;
         var target = _profile.TractionLimit * _state.ThermalScale * grip;
         var error = tcs || corner ? _state.DrivenSlip - (drifting ? Math.Max(1.42, target) : target) : -0.3;
         // Combined slip can be almost entirely lateral. Use it to tighten traction control only while a driven wheel slips forward.
         if ((tcs || corner) && _state.DrivenSlip > target * 0.65)
         {
-            var combinedError = (_state.DrivenCombined - (drifting ? 1.85 : corner ? 1.08 : 1.17)) * 0.69;
+            var combinedLimit = drifting ? 1.85 : corner && !unwinding ? 1.12 : 1.18;
+            var combinedError = (_state.DrivenCombined - combinedLimit) * 0.69;
             error = Math.Max(error, Math.Min(combinedError, _state.DrivenSlip * 0.51));
         }
-        if (tcs && !drifting && load < 0.36 && error < -0.22 && _state.DrivenCombined < 0.78 && !_state.DrivenWheelOverrun)
-            demand.ThrottleRestoreRate = 3.65;
+        if ((tcs || corner) && !drifting && (unwinding || load < 0.38) && error < -0.18 &&
+            _state.DrivenCombined < 0.85 && !_state.DrivenWheelOverrun)
+            demand.ThrottleRestoreRate = 4.20;
         _tractionIntegral = error > 0 ? Math.Clamp(_tractionIntegral + error * _state.Dt * 1.45, 0, 0.33) :
-            Math.Max(0, _tractionIntegral - _state.Dt * (0.55 - Math.Max(-1, error)));
+            Math.Max(0, _tractionIntegral - _state.Dt * (0.85 - 1.5 * Math.Max(-1, error)));
         var slope = Math.Clamp((error - _tractionError) / _state.Dt, -9, 9);
         _tractionDerivative += (1 - Math.Exp(-_state.Dt / 0.055)) * (slope - _tractionDerivative);
         _tractionError = error;

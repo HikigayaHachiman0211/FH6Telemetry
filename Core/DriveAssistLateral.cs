@@ -128,6 +128,8 @@ internal sealed class DriveAssistLateral
         var predictedYaw = Math.Abs(yawError) + 0.12 * Math.Clamp(Math.Sign(yawError) * state.YawAccel, 0, 6);
         var angle = Unit((predictedBeta - 0.06) / 0.48);
         var rotation = Unit((predictedYaw - 0.22) / 0.78);
+        if (state.FrontAngle >= state.RearAngle * 0.95 && !brakeYaw && !allSliding && beta < 0.22 && state.Yaw * yawError > 0)
+            rotation *= 0.35;
         return Unit((rotation * 0.58 + angle * 0.34 + rear * 0.24) * (0.55 + 0.45 * Math.Max(rear, angle)) +
             (brakeYaw ? 0.20 : 0) + (allSliding ? 0.26 : 0));
     }
@@ -161,7 +163,8 @@ internal sealed class DriveAssistLateral
         double yawError, double risk, int spinLevel, bool brakeYaw, bool limitDrive, ref DriveAssistDemands demand)
     {
         var absSteer = Math.Abs(driver.Steer);
-        var manual = absSteer > 0.76 || (_hasPrevious && Math.Abs(driver.Steer - _previous.Steer) > 0.46);
+        var manual = absSteer > 0.76 || (_hasPrevious && Math.Abs(driver.Steer - _previous.Steer) > 0.46) ||
+            (absSteer > 0.66 && state.FrontAngle >= state.RearAngle * 0.92 && !brakeYaw && Math.Abs(state.Beta) < 0.22);
         var rebound = _pendulumTime > 0 || _gripRecoveryTime > 0;
         if (spinLevel > 0 || rebound)
         {
@@ -186,7 +189,7 @@ internal sealed class DriveAssistLateral
             state.LateralG < 0.27 && Math.Abs(state.Beta) < 0.1 && driver.Brake < 0.12;
         _straightTime = inLine ? _straightTime + state.Dt : 0;
         _headingError = inLine ? Math.Clamp(_headingError + state.Yaw * state.Dt, -0.26, 0.26) : 0;
-        if (_hasPrevious && state.Speed > 24 && absSteer is >= 0.18 and <= 0.60 &&
+        if (_hasPrevious && state.Speed > 24 && absSteer is >= 0.18 and <= 0.60 && state.LateralG < 0.62 &&
             Math.Abs(_previous.Steer) < 0.12 && !manual && driver.Brake < 0.18 && Math.Abs(state.Beta) < 0.12)
             _laneChangeTime = 0.65;
         else _laneChangeTime = Math.Max(0, _laneChangeTime - state.Dt);
@@ -236,11 +239,13 @@ internal sealed class DriveAssistLateral
             _left.Estimate is double left && _right.Estimate is double right)
             target *= Math.Clamp(Math.Min(left, right) / (target > 0 ? right : left), 0.82, 1);
 
-        _fullLockTime = state.Speed > 16 && absSteer >= 0.80 ? _fullLockTime + state.Dt : 0;
-        if (_fullLockTime >= 0.33 && state.FrontCombined > 0.75)
-            target = Math.CopySign(Math.Min(Math.Abs(target), 0.76 - 0.23 * Unit((state.FrontCombined - 0.75) / 0.65)), target);
+        var severePush = state.Speed > 23 && absSteer >= 0.85 && state.FrontCombined > 1.02 &&
+            Math.Abs(state.Yaw) < Math.Max(0.12, Math.Abs(state.ExpectedYaw) * 0.72);
+        _fullLockTime = severePush ? _fullLockTime + state.Dt : 0;
+        if (_fullLockTime >= 0.40)
+            target = Math.CopySign(Math.Min(Math.Abs(target), Math.Max(0.72, 0.79 - 0.07 * Unit((state.FrontCombined - 1.02) / 0.55))), target);
 
-        var recenter = state.Phase == DriveAssistPhase.CornerExit && absSteer is > 0.08 and < 0.48 && driver.Throttle > 0.28 &&
+        var recenter = state.Phase == DriveAssistPhase.CornerExit && absSteer is > 0.08 and < 0.36 && driver.Throttle > 0.28 &&
             _hasPrevious && Math.Abs(_previous.Steer) > absSteer + 0.01 && Math.Abs(state.Beta) < 0.13;
         if (recenter) target *= 0.78;
         if (target == 0 && absSteer < 0.075 && state.Speed > 7 && Math.Abs(state.Beta) < 0.13 && Math.Abs(state.Yaw) > 0.04)
@@ -352,9 +357,9 @@ internal sealed class DriveAssistLateral
     private void LearnSteering(TelemetrySample sample, DriveAssistDriver driver, DriveAssistState state, bool calibrationPass)
     {
         var steerChange = !_hasPrevious ? 0 : driver.Steer - _previous.Steer;
-        _steadySteer = _hasPrevious && Math.Abs(steerChange) < 0.015 ? _steadySteer + state.Dt : 0;
-        if (!calibrationPass || state.Speed is < 8 or > 46 || driver.Brake > 0.10 || driver.Handbrake || driver.Clutch ||
-            Math.Abs(state.Beta) > 0.11 || state.RearAngle > 0.70 || state.FrontCombined > 0.75 || !double.IsFinite(sample.Steer))
+        _steadySteer = _hasPrevious && Math.Abs(steerChange) < 0.042 ? _steadySteer + state.Dt : 0;
+        if (!calibrationPass || state.Speed is < 8 or > 58 || driver.Brake > 0.20 || driver.Handbrake || driver.Clutch ||
+            Math.Abs(state.Beta) > 0.14 || state.RearAngle > 0.78 || state.FrontCombined > 0.96 || !double.IsFinite(sample.Steer))
         {
             _stepDirection = 0;
             return;
@@ -385,9 +390,9 @@ internal sealed class DriveAssistLateral
             }
         }
 
-        if (_steadySteer < 0.08 || absSteer is < 0.15 or > 0.65 || Math.Abs(state.ExpectedYaw) < 0.14 ||
+        if (_steadySteer < 0.08 || absSteer is < 0.14 or > 0.78 || Math.Abs(state.ExpectedYaw) < 0.12 ||
             Math.Sign(sample.Steer) != Math.Sign(driver.Steer) || Math.Abs(sample.Steer) < 0.10 ||
-            Math.Abs(state.YawAccel) > 1.7 || state.LateralG > 0.76)
+            Math.Abs(state.YawAccel) > 2.2 || state.LateralG > 1.35)
             return;
         var response = state.Yaw / (state.ExpectedYaw * (sample.Steer / driver.Steer));
         ref var side = ref (driver.Steer > 0 ? ref _right : ref _left);

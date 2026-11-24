@@ -10,6 +10,7 @@ internal readonly record struct ShiftGamepadReport(ushort Buttons, byte RightTri
     private const ushort LeftStickClick = 0x0040;
     private const ushort B = 0x2000;
     private const ushort X = 0x4000;
+    internal const ushort ClutchButton = LeftStickClick;
     internal const ushort ManualShiftButtons = LeftStickClick | B | X;
 
     public static ShiftGamepadReport For(ShiftDirection direction, bool automaticClutch = true,
@@ -130,6 +131,10 @@ internal sealed class GamepadShiftInput : IAutomaticShiftInput
     private ShiftGamepadReport _physical;
     private ShiftGamepadReport _shift;
     private ShiftDirection? _shiftDirection;
+    private ShiftTorquePlan? _activeShiftTorque;
+    private long? _upshiftRestoreStart;
+    private byte _upshiftRestoreFloor;
+    private int _upshiftRestoreDurationMs;
     private ShiftGamepadReport? _lastReport;
     private uint? _lastAssistRefresh;
     private ShiftGamepadReport _lastInjection;
@@ -351,9 +356,14 @@ internal sealed class GamepadShiftInput : IAutomaticShiftInput
         }
     }
 
-    public ShiftInputResult TryShift(ShiftDirection direction, AutomaticShiftSettings settings) => TryShift(direction, settings, null);
+    public ShiftInputResult TryShift(ShiftDirection direction, AutomaticShiftSettings settings) =>
+        TryShift(direction, settings, null, null);
 
-    public ShiftInputResult TryShift(ShiftDirection direction, AutomaticShiftSettings settings, byte? downshiftTrigger)
+    public ShiftInputResult TryShift(ShiftDirection direction, AutomaticShiftSettings settings, byte? downshiftTrigger) =>
+        TryShift(direction, settings, downshiftTrigger, null);
+
+    public ShiftInputResult TryShift(ShiftDirection direction, AutomaticShiftSettings settings, byte? downshiftTrigger,
+        ShiftTorquePlan? torquePlan)
     {
         lock (_sync)
         {
@@ -370,9 +380,20 @@ internal sealed class GamepadShiftInput : IAutomaticShiftInput
 
                 _shift = ShiftGamepadReport.For(direction, settings.AutomaticClutch, downshiftTrigger ?? byte.MaxValue);
                 _shiftDirection = direction;
-                Submit();
                 _pressedAt = _clock.GetTimestamp();
                 _pressDuration = TimeSpan.FromMilliseconds(settings.PressDurationMs);
+                if (_gamepad.ForwardsPhysicalInput && !_readOnly && direction == ShiftDirection.Up && torquePlan is { } plan)
+                {
+                    _activeShiftTorque = plan;
+                    _upshiftRestoreStart = null;
+                    _upshiftRestoreFloor = 0;
+                    _upshiftRestoreDurationMs = 0;
+                }
+                else
+                {
+                    ClearShiftTorque();
+                }
+                Submit();
                 if (!_gamepad.ForwardsPhysicalInput) _timer.Change(PollInterval, PollInterval);
                 return ShiftInputResult.Sent;
             }
@@ -410,12 +431,21 @@ internal sealed class GamepadShiftInput : IAutomaticShiftInput
         Submit();
     }
 
-    private void ClearPulse()
+    private void ClearShiftTorque()
+    {
+        _activeShiftTorque = null;
+        _upshiftRestoreStart = null;
+        _upshiftRestoreFloor = 0;
+        _upshiftRestoreDurationMs = 0;
+    }
+
+    private void ClearPulse(bool abort = true)
     {
         if (_pressedAt.HasValue) _releasedAt = _clock.GetTimestamp();
         _pressedAt = null;
         _shift = default;
         _shiftDirection = null;
+        if (abort) ClearShiftTorque();
         if (_gamepad?.ForwardsPhysicalInput != true) _timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
     }
 
@@ -425,8 +455,27 @@ internal sealed class GamepadShiftInput : IAutomaticShiftInput
     {
         if (_gamepad is null || (!_gamepad.ForwardsPhysicalInput && !_pressedAt.HasValue)) return;
         _physical = _gamepad.ReadPhysical();
-        if (_pressedAt is long start && (_clock.GetElapsedTime(start) >= _pressDuration || !IsGameInForeground || IsManualHeld()))
-            ClearPulse();
+        if (_pressedAt is long start)
+        {
+            if (!IsGameInForeground || IsManualHeld())
+                ClearPulse();
+            else if (_clock.GetElapsedTime(start) >= _pressDuration)
+            {
+                if (_gamepad.ForwardsPhysicalInput && !_readOnly && _shiftDirection == ShiftDirection.Up &&
+                    _activeShiftTorque is { UpshiftRestoreMs: > 0 } plan)
+                {
+                    _upshiftRestoreStart = _clock.GetTimestamp();
+                    _upshiftRestoreFloor = Math.Max((byte)115, plan.UpshiftEngageFloor);
+                    _upshiftRestoreDurationMs = plan.UpshiftRestoreMs;
+                    _activeShiftTorque = null;
+                }
+                else
+                {
+                    ClearShiftTorque();
+                }
+                ClearPulse(abort: false);
+            }
+        }
         var now = DriveAssistNow;
         var focused = IsGameInForeground;
         var driver = WithKeyboardSteering(now, focused);
@@ -434,7 +483,12 @@ internal sealed class GamepadShiftInput : IAutomaticShiftInput
         {
             var rawShift = (_physical.Buttons & (ushort)ShiftShortcutButton.B) != 0 ? ShiftDirection.Up :
                 (_physical.Buttons & (ushort)ShiftShortcutButton.X) != 0 ? ShiftDirection.Down : (ShiftDirection?)null;
-            _driveAssist.Feed(sample, driver, now, _pressedAt.HasValue, _shiftDirection ?? rawShift);
+            var shift = _shiftDirection ?? rawShift;
+            if (shift == ShiftDirection.Up &&
+                ((_shift.Buttons | _physical.Buttons) & ShiftGamepadReport.ClutchButton) == 0 &&
+                sample.Clutch < 0.08)
+                shift = null;
+            _driveAssist.Feed(sample, driver, now, _pressedAt.HasValue, shift);
         }
         Submit(sample, driver);
     }
@@ -470,6 +524,35 @@ internal sealed class GamepadShiftInput : IAutomaticShiftInput
                 report = _driveAssist.Render(driver, report, now, _shift.Buttons != 0, injectedThrottle);
             else if (_driveAssist.CruiseActive || _driveAssist.HasFreshData(now) || _driveAssist.LastFrame.HasValue)
                 _driveAssist.Suspend();
+        }
+
+        if ((_activeShiftTorque.HasValue || _upshiftRestoreStart.HasValue) &&
+            (_readOnly || !_gamepad!.ForwardsPhysicalInput || !IsGameInForeground || IsManualHeld() ||
+             _physical.LeftTrigger >= 25 || _physical.RightTrigger < 90))
+            ClearShiftTorque();
+
+        if (_gamepad!.ForwardsPhysicalInput && !_readOnly)
+        {
+            if (_pressedAt.HasValue && _shiftDirection == ShiftDirection.Up &&
+                _activeShiftTorque is { UpshiftPulseCeiling: byte ceiling })
+            {
+                report = report with { RightTrigger = Math.Min(report.RightTrigger, ceiling) };
+            }
+            else if (_upshiftRestoreStart is long restoreStart)
+            {
+                var elapsedMs = _clock.GetElapsedTime(restoreStart).TotalMilliseconds;
+                if (elapsedMs >= _upshiftRestoreDurationMs || _upshiftRestoreDurationMs <= 0)
+                {
+                    ClearShiftTorque();
+                }
+                else if (report.RightTrigger > _upshiftRestoreFloor)
+                {
+                    var progress = Math.Clamp(elapsedMs / _upshiftRestoreDurationMs, 0, 1);
+                    // Keep restored throttle >= UpshiftEngageFloor (~45%) while Buttons == 0 to avoid FH6's virtual pad idle deadzone.
+                    var ramp = (byte)Math.Round(_upshiftRestoreFloor + (report.RightTrigger - _upshiftRestoreFloor) * progress);
+                    report = report with { RightTrigger = Math.Min(report.RightTrigger, ramp) };
+                }
+            }
         }
 
         // Hold critical reductions explicitly while FH6 still reports fresh driving frames.

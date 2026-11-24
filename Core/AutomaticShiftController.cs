@@ -70,6 +70,11 @@ public enum ShiftAlgorithm { LazyForza, PowerDrop, VirtualTcu, Fh6AutoShift, Mod
 public enum VirtualTcuMode { Comfort, Race, Drift, OffRoad }
 internal enum ShiftDirection { Up, Down }
 
+internal readonly record struct ShiftTorquePlan(
+    byte? UpshiftPulseCeiling = null,
+    byte UpshiftEngageFloor = 0,
+    int UpshiftRestoreMs = 0);
+
 internal readonly record struct ShiftPedals(double Throttle, double Brake)
 {
     public bool Braking => Brake >= BrakeShiftStrategy.MinimumBrake && (Brake >= 0.50 || Brake >= Throttle * 0.55);
@@ -110,6 +115,9 @@ internal interface IAutomaticShiftInput : IDisposable
     ShiftInputResult TryShift(ShiftDirection direction, AutomaticShiftSettings settings);
     ShiftInputResult TryShift(ShiftDirection direction, AutomaticShiftSettings settings, byte? downshiftTrigger) =>
         TryShift(direction, settings);
+    ShiftInputResult TryShift(ShiftDirection direction, AutomaticShiftSettings settings, byte? downshiftTrigger,
+        ShiftTorquePlan? torquePlan) =>
+        TryShift(direction, settings, downshiftTrigger);
     void Release();
     void Disconnect();
 }
@@ -976,7 +984,15 @@ internal sealed class AutomaticShiftController(IAutomaticShiftInput input, strin
                     LandingRpm: higherRatio > 0 ? sample.SpeedKmh * higherRatio : 0);
 
             if (currentRatio > 0 && sample.SpeedKmh * currentRatio >= upshiftRpm && higherRatio < currentRatio)
+            {
+                // Avoid clutched FWD/RWD mid-corner strict-speed upshifts below 96.5% RPM unless grip protection owns the hold.
+                var clutchedTwoWheelDrive = sample.DrivetrainType is 0 or 1 && _transmission.EffectiveAutomaticClutch(_settings);
+                var highLateralLoad = Math.Abs(sample.AccelerationX) > 0.72 * TelemetryDerived.Gravity &&
+                    Math.Abs(sample.Steer) > 0.25 && sample.Rpm < 0.965 * effectiveLimit;
+                if (!_settings.UpshiftGripProtection && clutchedTwoWheelDrive && highLateralLoad)
+                    return default;
                 return new(_gear + 1, ShiftReason.StrictSpeedMatch, LandingRpm: sample.SpeedKmh * higherRatio);
+            }
         }
 
         if (currentRatio <= 0) return new(0, ShiftReason.None, NeedsRatio: true);
@@ -1595,10 +1611,13 @@ internal sealed class AutomaticShiftController(IAutomaticShiftInput input, strin
             UsedClutch: useClutch));
         var shiftSettings = useClutch == _settings.AutomaticClutch ? _settings : _settings with { AutomaticClutch = useClutch };
         byte? blip = null;
+        ShiftTorquePlan? torquePlan = null;
         var expectedLandingRpm = decision.LandingRpm;
         if (direction == ShiftDirection.Down)
             blip = ComputeDownshiftBlip(decision, sample, pedals, useClutch, out expectedLandingRpm);
-        var result = input.TryShift(direction, shiftSettings, blip);
+        else if (direction == ShiftDirection.Up)
+            torquePlan = ComputeUpshiftTorquePlan(sample, pedals, useClutch, drivenSlip);
+        var result = input.TryShift(direction, shiftSettings, blip, torquePlan);
         _traceSink?.Invoke(new(Environment.TickCount64, "shift_result", Gear: _gear, TargetGear: decision.Target,
             OutputMode: _settings.GamepadMode, Detail: result.ToString()));
         if (result == ShiftInputResult.PulseInProgress) return;
@@ -1631,6 +1650,25 @@ internal sealed class AutomaticShiftController(IAutomaticShiftInput input, strin
                 HoldOutputFailure();
                 break;
         }
+    }
+
+    private ShiftTorquePlan? ComputeUpshiftTorquePlan(TelemetrySample sample, ShiftPedals pedals, bool useClutch, double drivenSlip)
+    {
+        if (!useClutch || pedals.Throttle < 0.45) return null;
+        var lateralLoad = Math.Clamp((Math.Abs(sample.AccelerationX) / TelemetryDerived.Gravity - 0.35) / 0.65, 0, 1);
+        var slipLoad = double.IsFinite(drivenSlip) ? Math.Clamp((drivenSlip - 0.20) / 0.80, 0, 1) : 0;
+        var load = Math.Max(lateralLoad, slipLoad);
+        if (sample.DrivetrainType is 0 or 1)
+        {
+            var gearScale = _gear <= 2 ? 1.0 : _gear == 3 ? 0.72 : 0.45;
+            var restoreMs = (int)Math.Clamp(Math.Round((55 + 30 * load + (sample.DrivetrainType == 1 ? 15 : 0)) * gearScale), 50, 105);
+            return new(UpshiftPulseCeiling: 0, UpshiftEngageFloor: 115, UpshiftRestoreMs: restoreMs);
+        }
+
+        var awdCeiling = drivenSlip >= 0.50 || lateralLoad >= 0.45 ? (byte)38 : (byte)64;
+        return drivenSlip >= 0.50
+            ? new(UpshiftPulseCeiling: awdCeiling, UpshiftEngageFloor: 115, UpshiftRestoreMs: 55)
+            : new(UpshiftPulseCeiling: awdCeiling, UpshiftEngageFloor: 0, UpshiftRestoreMs: 0);
     }
 
     private byte? ComputeDownshiftBlip(ShiftDecision decision, TelemetrySample sample, ShiftPedals pedals, bool useClutch, out double expectedLandingRpm)

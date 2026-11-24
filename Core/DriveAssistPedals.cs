@@ -336,8 +336,11 @@ internal sealed class DriveAssistPedals
         if (shifting == ShiftDirection.Up && _previousShift != ShiftDirection.Up) _shiftCutTime = 0.14;
         if (shifting == ShiftDirection.Down) _shiftCutTime = 0;
         if (_shiftCutTime > 0 && driver.Throttle > 0.15)
-            demand.LimitThrottle(driver.Throttle * (1 - 0.53 * Unit(_shiftCutTime / 0.09)),
+        {
+            var depth = sample.Clutch >= 0.25 && sample.DrivetrainType is 0 or 1 ? 0.78 : 0.53;
+            demand.LimitThrottle(driver.Throttle * (1 - depth * Unit(_shiftCutTime / 0.09)),
                 DriveAssistFeature.TransmissionAssist, cutRate: 24);
+        }
         _shiftCutTime = Math.Max(0, _shiftCutTime - state.Dt);
 
         if (!drifting || shifting is not null || state.LandingStrength > 0.1) _driftClutchTime = 0;

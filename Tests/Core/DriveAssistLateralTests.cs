@@ -159,6 +159,20 @@ internal static class DriveAssistLateralTests
             Check(drive.Lateral.Status is { SteeringDelayMs: >= 60 and <= 120, SteeringDeadzone: >= 0.05 and <= 0.10 },
                 "报告的迟滞和死区应来自原始手柄与实际车辆响应");
         });
+
+        run("横向辅助：高转向角前轴饱和不被稳定控制反拉，低中速满舵不被提前限死", () =>
+        {
+            var drive = new Drive(DriveAssistFeature.Stability | DriveAssistFeature.SteeringTuning, deadzone: 0);
+            var frontSaturated = Ground() with
+            {
+                Phase = DriveAssistPhase.Corner, Speed = 17, Yaw = 0.45, ExpectedYaw = 0.22,
+                Beta = -0.14, FrontAngle = 1.15, RearAngle = 0.85, FrontCombined = 1.25,
+            };
+            DriveAssistDemands held = default;
+            for (var i = 0; i < 25; i++) held = drive.Step(frontSaturated, 0.72);
+            Check(held.SteeringOwner == DriveAssistFeature.None,
+                "高舵角前轴饱和时不应由稳定控制强行回拉，中低速下保持转向角度");
+        });
     }
 
     private static DriveAssistState Ground() => new(

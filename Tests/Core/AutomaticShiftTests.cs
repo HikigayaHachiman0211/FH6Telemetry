@@ -2641,6 +2641,36 @@ internal static class AutomaticShiftTests
             drive.Feed(racing, 4000);
             Check(!drive.Status.Enabled && drive.Input.Shifts.Count == 8, "用户停用后须一直保持关闭");
         });
+
+        run("自动换挡：有离合两驱满油升挡输出降扭恢复计划，免离合不限扭，严格模式弯中延后早升挡", () =>
+        {
+            using var drive = new Drive();
+            var car = FullLoad with { CarOrdinal = 1155, CarPerformanceIndex = 700, DrivetrainType = 1, EngineMaxRpm = 8000 };
+            drive.Feed(AtPower(WithWheelSpeed(car with { Gear = 1, SpeedKmh = 60, Rpm = 4800, Throttle = 0.45 }, 54, 0), 240), 460);
+            drive.Feed(AtPower(WithWheelSpeed(car with { Gear = 3, SpeedKmh = 110, Rpm = 4800, Throttle = 0.45 }, 99, 0), 240), 460);
+            drive.Feed(AtPower(WithWheelSpeed(car with { Gear = 2, SpeedKmh = 80, Rpm = 4800, Throttle = 0.45 }, 72, 0), 240), 460);
+            drive.Enable(new AutomaticShiftSettings { StrictSpeedGearMatching = true, AutomaticClutch = true, AutoDetectRaceTransmission = false, UpshiftGripProtection = false });
+
+            var cornerEarly = AtPower(WithWheelSpeed(car with
+            {
+                Gear = 2, SpeedKmh = 123, Rpm = 7380,
+                AccelerationX = 0.85 * TelemetryDerived.Gravity, Steer = 0.45,
+            }, 123 * 0.9, 0), 320);
+            drive.Feed(cornerEarly, 240);
+            Check(drive.Input.Shifts.Count == 0, "两驱带离合在高侧向负载且未到极限转速前不应在严格车速模式下早升挡");
+
+            var straightExit = cornerEarly with { AccelerationX = 0, Steer = 0.04 };
+            drive.Feed(straightExit, 240);
+            Check(drive.Input.Shifts.SequenceEqual([ShiftDirection.Up]) &&
+                  drive.Input.LastTorquePlan is { UpshiftPulseCeiling: 0, UpshiftEngageFloor: >= 115, UpshiftRestoreMs: >= 50 },
+                "出弯回正后应升挡并发出带死区保护的离合升挡恢复计划");
+
+            using var clutchless = new Drive();
+            clutchless.Enable(new AutomaticShiftSettings { StrictSpeedGearMatching = false, AutomaticClutch = false });
+            clutchless.Feed(FullLoad with { Gear = 2, SpeedKmh = 100, Rpm = 7985 }, 300);
+            Check(clutchless.Input.Shifts.SequenceEqual([ShiftDirection.Up]) && clutchless.Input.LastTorquePlan is null,
+                "免离合升挡不应生成额外的升挡降扭计划");
+        });
     }
 
     private static readonly TelemetrySample FullLoad = new()
@@ -2760,6 +2790,7 @@ internal static class AutomaticShiftTests
         public List<bool> ClutchStates { get; } = new();
         public GamepadShiftMode LastMode { get; private set; }
         public byte? LastBlip { get; private set; }
+        public ShiftTorquePlan? LastTorquePlan { get; private set; }
         public int Releases { get; private set; }
         public int Disconnects { get; private set; }
         public bool? EffectiveClutchSetting { get; private set; }
@@ -2778,9 +2809,14 @@ internal static class AutomaticShiftTests
             return Result;
         }
 
-        public ShiftInputResult TryShift(ShiftDirection direction, AutomaticShiftSettings settings, byte? downshiftTrigger)
+        public ShiftInputResult TryShift(ShiftDirection direction, AutomaticShiftSettings settings, byte? downshiftTrigger) =>
+            TryShift(direction, settings, downshiftTrigger, null);
+
+        public ShiftInputResult TryShift(ShiftDirection direction, AutomaticShiftSettings settings, byte? downshiftTrigger,
+            ShiftTorquePlan? torquePlan)
         {
             LastBlip = downshiftTrigger;
+            LastTorquePlan = torquePlan;
             return TryShift(direction, settings);
         }
 

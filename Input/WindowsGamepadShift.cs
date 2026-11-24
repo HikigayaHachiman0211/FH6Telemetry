@@ -288,8 +288,12 @@ internal sealed class WindowsShiftInputRouter(IAutomaticShiftInput keyboard, Gam
         TryShift(direction, settings, null);
 
     public ShiftInputResult TryShift(ShiftDirection direction, AutomaticShiftSettings settings, byte? downshiftTrigger) =>
+        TryShift(direction, settings, downshiftTrigger, null);
+
+    public ShiftInputResult TryShift(ShiftDirection direction, AutomaticShiftSettings settings, byte? downshiftTrigger,
+        ShiftTorquePlan? torquePlan) =>
         _driveAssistReadOnly ? ShiftInputResult.NotInForeground :
-            Volatile.Read(ref _active)?.TryShift(direction, settings, downshiftTrigger) ?? ShiftInputResult.Failed;
+            Volatile.Read(ref _active)?.TryShift(direction, settings, downshiftTrigger, torquePlan) ?? ShiftInputResult.Failed;
 
     public void Release() => Volatile.Read(ref _active)?.Release();
     public void Disconnect() => Volatile.Read(ref _active)?.Disconnect();

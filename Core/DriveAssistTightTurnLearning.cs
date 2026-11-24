@@ -47,15 +47,19 @@ internal sealed class DriveAssistTightTurnLearning
         _turnDirection = direction;
         var speedKmh = state.Speed * 3.6;
         var tireUse = Math.Abs(outsideFront.SlipAngle) / frontLimit;
+        var longG = Math.Abs(state.LongitudinalG);
         var yawG = state.Speed * state.Yaw * direction / TelemetryDerived.Gravity;
-        if (speedKmh is < 20 or > 110 || driver.Brake > 0.40 || Math.Abs(state.LongitudinalG) > 0.40 ||
-            state.LateralG < 0.30 || yawG < state.LateralG * 0.55 || yawG > state.LateralG * 1.65 ||
-            tireUse is < 0.50 or > 1.40 || Math.Abs(outsideFront.SlipRatio) > 0.40 ||
-            outsideFront.OnRumbleStrip || outsideFront.PuddleDepth > 0.08 || Math.Abs(outsideFront.SurfaceRumble) >= 0.34) return;
+        if (speedKmh is < 18 or > 165 || driver.Brake > 0.68 || longG > 0.85 ||
+            state.LateralG < 0.30 || yawG < state.LateralG * 0.52 || yawG > state.LateralG * 1.70 ||
+            tireUse is < 0.42 or > 1.75 || Math.Abs(outsideFront.SlipRatio) > 0.65 ||
+            outsideFront.NormalizedSuspensionTravel < 0.10 ||
+            outsideFront.PuddleDepth > 0.14 || Math.Abs(outsideFront.SurfaceRumble) >= 0.52) return;
 
-        var grip = Math.Min(state.LateralG, yawG) / Math.Clamp(tireUse, 0.62, 1);
+        // Combine lateral and longitudinal demand on the friction circle so trail-braked and apex-loaded corners calibrate cleanly.
+        var combinedG = Math.Sqrt(state.LateralG * state.LateralG + 0.35 * longG * longG);
+        var grip = Math.Max(combinedG, Math.Min(state.LateralG, yawG)) / Math.Clamp(tireUse, 0.58, 1.05);
         _sampleSeconds += state.Dt;
-        _gripTotal += Math.Clamp(grip, 0.35, 2.3) * state.Dt;
+        _gripTotal += Math.Clamp(grip, 0.35, 3.6) * state.Dt;
     }
 
     private void CompleteTurn()
@@ -66,8 +70,8 @@ internal sealed class DriveAssistTightTurnLearning
         if (_turnCount < 3) return;
 
         // At the same reference radius, speed grows with the square root of available lateral grip.
-        var speedKmh = DriveAssistSettings.DefaultTightTurnSpeedKmh * Math.Sqrt(_learnedGrip);
+        var speedKmh = 56.0 * Math.Sqrt(_learnedGrip);
         SpeedLimitKmh = (int)Math.Clamp(Math.Round(speedKmh),
-            DriveAssistSettings.MinimumTightTurnSpeedKmh, DriveAssistSettings.MaximumTightTurnSpeedKmh);
+            DriveAssistSettings.MinimumTightTurnSpeedKmh, DriveAssistSettings.MaximumLearnedTightTurnSpeedKmh);
     }
 }

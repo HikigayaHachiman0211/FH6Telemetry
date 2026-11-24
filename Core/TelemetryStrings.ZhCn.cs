@@ -288,7 +288,7 @@ public static partial class TelemetryText
         ["EcuBestSteadyG"] = "持续横向 G 峰值 {0:0.00}",
         ["EcuArm"] = "接通驾驶辅助",
         ["EcuDisarm"] = "停用驾驶辅助",
-        ["EcuExperimentalNotice"] = "实验性功能，仍在开发。稳定性和圈速表现可能不如游戏自带的驾驶辅助。",
+        ["EcuExperimentalNotice"] = "驾驶辅助暂未开发完成。当前效果不如游戏内置的官方辅助，启用后可能影响圈速和操控手感。",
         ["EcuHelp"] = "应用预设或勾选单项功能，再接通驾驶辅助。需要 Data Out 和已配置的虚拟手柄转发。手刹键要与游戏一致，弹射的离合键使用 L3。长按手刹、倒挡或遥测中断时交还手柄控制权。",
         ["EcuDisarmed"] = "驾驶辅助未接通",
         ["EcuWaiting"] = "已接通 · 等待 FH6 前台驾驶遥测",
